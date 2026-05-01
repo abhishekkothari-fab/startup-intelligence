@@ -93,6 +93,7 @@ export interface FullProfile {
   all_scores:   Score[]
   youtube:      YouTubeSignal[]
   linkedin:     LinkedInSignal[]
+  raw_summary:  Record<string, unknown>[]
   meta: {
     youtube_count:    number
     linkedin_count:   number

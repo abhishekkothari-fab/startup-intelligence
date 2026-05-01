@@ -1,0 +1,39 @@
+/* src/app/globals.css */
+:root {
+  --navy:    #1b2a4a;
+  --blue:    #1d6fa4;
+  --blue-lt: #e8f2f9;
+  --blue-md: #c8dff0;
+  --green:   #166534;
+  --green-lt:#f0fdf4;
+  --green-bd:#86efac;
+  --amber:   #b45309;
+  --amber-lt:#fffbeb;
+  --amber-bd:#fcd34d;
+  --red:     #991b1b;
+  --red-lt:  #fef2f2;
+  --slate:   #475569;
+  --border:  #e2e6ea;
+  --border-md: #cdd2d8;
+  --bg:      #ffffff;
+  --bg-soft: #f8f9fa;
+  --text-h:  #0f172a;
+  --text-b:  #1e293b;
+  --text-m:  #475569;
+  --text-s:  #64748b;
+  --text-xs: #94a3b8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text-b);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.mono { font-family: "JetBrains Mono", "Fira Code", monospace; }

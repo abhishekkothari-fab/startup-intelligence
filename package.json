@@ -1,0 +1,28 @@
+{
+  "name": "startup-intelligence",
+  "version": "1.0.0",
+  "description": "Startup Intelligence System — automated research, scoring, and dossier generation for Indian D2C and BFSI startups",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:functions": "supabase functions serve --env-file supabase/.env.local",
+    "supabase:deploy": "supabase functions deploy profile-startup && supabase functions deploy get-startup && supabase functions deploy get-startups && supabase functions deploy get-job",
+    "db:push": "supabase db push"
+  },
+  "dependencies": {
+    "next": "14.2.3",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5"
+  }
+}

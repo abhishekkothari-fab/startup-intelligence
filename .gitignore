@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.*.local
+supabase/.env.local
+*.env
+
+# Supabase local dev
+supabase/.branches/
+supabase/.temp/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Type declarations (generated)
+*.d.ts.map

@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { getStartup, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
 
@@ -11,7 +11,8 @@ function num(v: unknown): number {
   return Number(v) || 0
 }
 
-export default function ProfilePage({ params }: { params: { id: string } }) {
+export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [profile, setProfile] = useState<FullProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -19,11 +20,11 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
-    getStartup(params.id)
+    getStartup(id)
       .then(setProfile)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [params.id])
+  }, [id])
 
   if (loading) return <LoadingState />
   if (error)   return <ErrorState error={error} onBack={() => router.push("/")} />
@@ -46,8 +47,8 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
           {NAV_SECTIONS.map(({ label, items }) => (
             <div key={label}>
               <div style={navGroupLabel}>{label}</div>
-              {items.map(({ id, title }) => (
-                <button key={id} onClick={() => setActiveTab(id)} style={navItem(activeTab === id)}>{title}</button>
+              {items.map(({ id: tabId, title }) => (
+                <button key={tabId} onClick={() => setActiveTab(tabId)} style={navItem(activeTab === tabId)}>{title}</button>
               ))}
             </div>
           ))}
@@ -95,22 +96,19 @@ function OverviewTab({ s, sc, score }: { s: Record<string, unknown>; sc: FullPro
           </p>
         )}
       </div>
-
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: "1.75rem" }}>
         <Chip navy>{str(s.stage).replace(/_/g," ").toUpperCase()}</Chip>
         {Boolean(s.is_profitable) && <Chip green>✓ Profitable</Chip>}
-        {str(s.industry)      && <Chip blue>{str(s.industry)}</Chip>}
-        {str(s.hq_city)       && <Chip gray>{str(s.hq_city)}</Chip>}
+        {str(s.industry)         && <Chip blue>{str(s.industry)}</Chip>}
+        {str(s.hq_city)          && <Chip gray>{str(s.hq_city)}</Chip>}
         {str(s.glassdoor_rating) && <Chip amber>Glassdoor {str(s.glassdoor_rating)}/5</Chip>}
       </div>
-
       <StatGrid>
-        <StatCard label="Revenue"      value={s.revenue_inr_cr    ? `₹${str(s.revenue_inr_cr)} Cr`   : "—"} sub={str(s.revenue_fy)} />
+        <StatCard label="Revenue"      value={s.revenue_inr_cr     ? `₹${str(s.revenue_inr_cr)} Cr`   : "—"} sub={str(s.revenue_fy)} />
         <StatCard label="Total Raised" value={s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M` : "—"} sub={str(s.last_round_type)} />
         <StatCard label="Clients"      value={s.client_count       ? `${str(s.client_count)}+`         : "—"} sub="Enterprise" />
         <StatCard label="Team"         value={s.team_size          ? str(s.team_size)                  : "—"} sub="employees" />
       </StatGrid>
-
       <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", display: "grid", gridTemplateColumns: "120px 1fr", gap: "1.5rem", alignItems: "center", background: "var(--bg-soft)", marginTop: "0.5rem" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 48, fontWeight: 700, color: scoreColor(score), lineHeight: 1 }}>{score}</div>
@@ -158,12 +156,12 @@ function ScoreTab({ sc }: { sc: FullProfile["latest_score"] }) {
       <SecHeader title="Ratios" tag="Analytics" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
         {([
-          ["Funding Velocity",   sc.r_funding_velocity     ? `₹${sc.r_funding_velocity} Cr/mo`      : "—"],
-          ["Founder-Market Fit", sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`            : "—"],
-          ["Traction Velocity",  sc.r_traction_velocity    ? `${sc.r_traction_velocity} cl/mo`       : "—"],
-          ["Investor Quality",   sc.r_investor_quality     ? String(sc.r_investor_quality)            : "—"],
-          ["Product Surface",    sc.r_product_surface      ? String(sc.r_product_surface)             : "—"],
-          ["Recognition",        sc.r_recognition_momentum ? String(sc.r_recognition_momentum)        : "—"],
+          ["Funding Velocity",   sc.r_funding_velocity     ? `₹${sc.r_funding_velocity} Cr/mo`     : "—"],
+          ["Founder-Market Fit", sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`           : "—"],
+          ["Traction Velocity",  sc.r_traction_velocity    ? `${sc.r_traction_velocity} cl/mo`      : "—"],
+          ["Investor Quality",   sc.r_investor_quality     ? String(sc.r_investor_quality)           : "—"],
+          ["Product Surface",    sc.r_product_surface      ? String(sc.r_product_surface)            : "—"],
+          ["Recognition",        sc.r_recognition_momentum ? String(sc.r_recognition_momentum)       : "—"],
         ] as [string,string][]).map(([k,v], i) => (
           <div key={k} style={{ padding: "9px 14px", background: i%2===0?"#fff":"var(--bg-soft)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontFamily: "monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-s)" }}>{k}</span>
@@ -177,13 +175,13 @@ function ScoreTab({ sc }: { sc: FullProfile["latest_score"] }) {
 
 function YouTubeTab({ videos }: { videos: YouTubeSignal[] }) {
   if (!videos.length) return <Empty>No YouTube data collected.</Empty>
-  const typeBg: Record<string,string>  = { founder_on_camera:"var(--blue-lt)", podcast_feature:"var(--green-lt)", culture_content:"var(--amber-lt)" }
+  const typeBg:  Record<string,string> = { founder_on_camera:"var(--blue-lt)", podcast_feature:"var(--green-lt)", culture_content:"var(--amber-lt)" }
   const typeClr: Record<string,string> = { founder_on_camera:"var(--navy)",    podcast_feature:"var(--green)",    culture_content:"var(--amber)" }
   return (
     <div>
       <SecHeader title="YouTube Intelligence" tag="Pass 7" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: "8px 8px 0 0", overflow: "hidden" }}>
-        {([["Videos", videos.length],["Own Channel", videos.some(v=>v.is_own_channel)?"Yes":"No"],["Latest", videos[0]?.published_date?.slice(0,7)||"—"],["Types",[...new Set(videos.map(v=>v.video_type))].length]] as [string,string|number][]).map(([l,v])=>(
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:1, background:"var(--border)", border:"1px solid var(--border)", borderRadius:"8px 8px 0 0", overflow:"hidden" }}>
+        {([["Videos",videos.length],["Own Channel",videos.some(v=>v.is_own_channel)?"Yes":"No"],["Latest",videos[0]?.published_date?.slice(0,7)||"—"],["Types",[...new Set(videos.map(v=>v.video_type))].length]] as [string,string|number][]).map(([l,v])=>(
           <div key={l} style={{ background:"#fff", padding:"0.875rem 1.25rem" }}>
             <div style={statLabel}>{l}</div>
             <div style={{ fontSize:20, fontWeight:700, color:"var(--text-h)" }}>{String(v)}</div>
@@ -200,7 +198,7 @@ function YouTubeTab({ videos }: { videos: YouTubeSignal[] }) {
             <div>
               <div style={{ fontSize:13, fontWeight:500, color:"var(--text-h)", lineHeight:1.4 }}>{v.video_title}</div>
               <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)", marginTop:2 }}>{v.published_date} · {v.channel_name}</div>
-              {v.key_quote && <div style={{ fontSize:12, color:"var(--text-m)", fontStyle:"italic", marginTop:4 }}>"{v.key_quote}"</div>}
+              {v.key_quote&&<div style={{ fontSize:12, color:"var(--text-m)", fontStyle:"italic", marginTop:4 }}>"{v.key_quote}"</div>}
             </div>
             <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"3px 7px", borderRadius:4, whiteSpace:"nowrap", background:typeBg[v.video_type]||"var(--bg-soft)", color:typeClr[v.video_type]||"var(--slate)", border:"1px solid var(--border)" }}>{v.video_type?.replace(/_/g," ")}</span>
           </div>
@@ -217,10 +215,8 @@ function LinkedInTab({ signals }: { signals: LinkedInSignal[] }) {
   return (
     <div>
       <SecHeader title="LinkedIn Intelligence" tag="Passes 8+9" />
-      {pass8.length>0&&<><div style={sectionSubLabel}>Founder posts</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:"1.5rem" }}>{pass8.map((s,i)=><LiCard key={i} s={s}/>)}</div></>}
-      {pass9.length>0&&<><div style={sectionSubLabel}>Third-party mentions</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>{pass9.map((s,i)=><LiCard key={i} s={s}/>)}</div></>}
+      {pass8.length>0&&<><div style={sectionSubLabel}>Founder posts</div><div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:"1.5rem" }}>{pass8.map((s,i)=><LiCard key={i} s={s}/>)}</div></>}
+      {pass9.length>0&&<><div style={sectionSubLabel}>Third-party mentions</div><div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>{pass9.map((s,i)=><LiCard key={i} s={s}/>)}</div></>}
     </div>
   )
 }
@@ -256,7 +252,7 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
         </div>
         <div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"1rem", marginBottom:"1rem" }}>
-            {([["Work-Life Balance", s.glassdoor_wlb, "var(--red)"],["Culture & Values", s.glassdoor_culture, "var(--amber)"],["Would Recommend", s.glassdoor_recommend?`${str(s.glassdoor_recommend)}%`:null,"var(--green)"]] as [string,unknown,string][]).map(([l,v,c])=>(
+            {([["Work-Life Balance",s.glassdoor_wlb,"var(--red)"],["Culture & Values",s.glassdoor_culture,"var(--amber)"],["Would Recommend",s.glassdoor_recommend?`${str(s.glassdoor_recommend)}%`:null,"var(--green)"]] as [string,unknown,string][]).map(([l,v,c])=>(
               <div key={l}>
                 <div style={statLabel}>{l}</div>
                 <div style={{ height:5, background:"var(--bg-soft)", borderRadius:3, overflow:"hidden", margin:"5px 0" }}>
@@ -315,11 +311,7 @@ function RawTab({ summary }: { summary: Record<string, unknown>[] }) {
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)" }}>{str(f.field_name)}</td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)" }}>{str(f.field_pack)}</td>
                 <td style={{ padding:"7px 12px" }}>
-                  <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"1px 6px", borderRadius:3,
-                    background:f.applicability==="applicable"?"var(--green-lt)":f.applicability==="unknown"?"var(--amber-lt)":"var(--red-lt)",
-                    color:f.applicability==="applicable"?"var(--green)":f.applicability==="unknown"?"var(--amber)":"var(--red)" }}>
-                    {str(f.applicability)}
-                  </span>
+                  <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"1px 6px", borderRadius:3, background:f.applicability==="applicable"?"var(--green-lt)":f.applicability==="unknown"?"var(--amber-lt)":"var(--red-lt)", color:f.applicability==="applicable"?"var(--green)":f.applicability==="unknown"?"var(--amber)":"var(--red)" }}>{str(f.applicability)}</span>
                 </td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-s)" }}>{str(f.source_type)}</td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)" }}>{f.confidence?str(f.confidence):"—"}</td>

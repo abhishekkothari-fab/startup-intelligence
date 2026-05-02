@@ -234,11 +234,15 @@ Run all 9 passes. Collect as much data as possible. Return ONLY the JSON object 
 
   let finalJson: string | null = null;
   let iterations = 0;
-  const MAX_ITERATIONS = 20; // safety limit for tool call loop
+  const MAX_ITERATIONS = 20;
+  const DEADLINE = Date.now() + 300_000; // 5-minute hard deadline
 
   await req.onProgress?.(10, "Running research passes 1–6");
 
   while (!finalJson && iterations < MAX_ITERATIONS) {
+    if (Date.now() > DEADLINE) {
+      throw new Error("Research timed out after 5 minutes — partial data not saved. Try again.");
+    }
     iterations++;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {

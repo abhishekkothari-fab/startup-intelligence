@@ -246,8 +246,7 @@ Run all 9 passes. Collect as much data as possible. Return ONLY the JSON object 
       headers: {
         "Content-Type": "application/json",
         "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "interleaved-thinking-2025-05-07"
+        "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",

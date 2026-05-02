@@ -336,7 +336,7 @@ function StatCard({ label, value, sub }: { label:string; value:string; sub:strin
     </div>
   )
 }
-function Chip({ children, navy, blue, green, amber, gray }: { children:React.ReactNode } & Record<string,boolean|undefined>) {
+function Chip({ children, navy, blue, green, amber, gray }: { children:React.ReactNode; navy?:boolean; blue?:boolean; green?:boolean; amber?:boolean; gray?:boolean }) {
   const bg     = navy?"var(--navy)":blue?"var(--blue-lt)":green?"var(--green-lt)":amber?"var(--amber-lt)":"var(--bg-soft)"
   const color  = navy?"#fff":blue?"var(--navy)":green?"var(--green)":amber?"var(--amber)":"var(--slate)"
   const border = navy?"var(--navy)":blue?"var(--blue-md)":green?"var(--green-bd)":amber?"var(--amber-bd)":"var(--border-md)"

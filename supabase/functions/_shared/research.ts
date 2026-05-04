@@ -260,7 +260,7 @@ async function claudeCall(
   while (!finalJson && iterations < maxIterations) {
     iterations++;
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 90_000);
+    const timer = setTimeout(() => abort.abort(), 150_000);
     let response: Response;
     try {
       response = await fetch("https://api.anthropic.com/v1/messages", {

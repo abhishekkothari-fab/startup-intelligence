@@ -272,13 +272,15 @@ Run all 9 passes. Collect as much data as possible. Return ONLY the JSON object 
     const data = await response.json();
 
     if (data.stop_reason === "end_turn") {
-      // Extract the final JSON text response
       const textBlocks = data.content.filter((b: { type: string }) => b.type === "text");
       if (textBlocks.length > 0) {
         const rawText = textBlocks.map((b: { text: string }) => b.text).join("");
-        // Strip any accidental markdown fences
-        const cleaned = rawText.replace(/^```json\s*/m, "").replace(/^```\s*/m, "").replace(/```\s*$/m, "").trim();
-        finalJson = cleaned;
+        // Strip markdown fences if present
+        const stripped = rawText.replace(/^```json\s*/m, "").replace(/^```\s*/m, "").replace(/```\s*$/m, "").trim();
+        // Extract the outermost JSON object — ignore any prose before/after
+        const start = stripped.indexOf("{");
+        const end = stripped.lastIndexOf("}");
+        finalJson = start !== -1 && end !== -1 ? stripped.slice(start, end + 1) : stripped;
       }
       break;
     }

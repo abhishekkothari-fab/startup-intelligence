@@ -260,13 +260,13 @@ async function claudeCall(
   while (!finalJson && iterations < maxIterations) {
     iterations++;
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 150_000);
+    const timer = setTimeout(() => abort.abort(), 120_000);
     let response: Response;
     try {
       response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, tools: [{ type: "web_search_20250305", name: "web_search" }], messages }),
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }], messages }),
         signal: abort.signal
       });
     } catch (e) { throw new Error(`API call timed out: ${e}`); }

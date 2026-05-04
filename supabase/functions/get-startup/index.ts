@@ -1,10 +1,5 @@
-// supabase/functions/get-startups/index.ts
-// GET /functions/v1/get-startups
-// Query params:
-//   ?page=1&limit=20            — pagination (default page=1, limit=20)
-//   ?stage=series_a             — filter by stage
-//   ?industry=BFSI              — filter by industry
-//   ?sort=composite_score|revenue_inr_cr|team_size  — sort field (default: composite_score)
+// supabase/functions/get-startup/index.ts
+// GET /functions/v1/get-startup/:id
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { getSupabaseClient } from "../_shared/db.ts";
@@ -18,42 +13,42 @@ const CORS = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const url      = new URL(req.url);
-  const page     = Math.max(1, parseInt(url.searchParams.get("page")  ?? "1"));
-  const limit    = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20")));
-  const stage    = url.searchParams.get("stage");
-  const industry = url.searchParams.get("industry");
-  const sortBy   = url.searchParams.get("sort") ?? "composite_score";
+  const url = new URL(req.url);
+  const id  = url.pathname.split("/").pop();
 
-  const ALLOWED_SORTS = ["composite_score", "revenue_inr_cr", "team_size", "total_raised_usd_m"];
-  const sort = ALLOWED_SORTS.includes(sortBy) ? sortBy : "composite_score";
+  if (!id) return json({ error: "Missing startup id" }, 400);
 
   const supabase = getSupabaseClient();
 
-  // Use the leaderboard view — pre-joined with latest score
-  let query = supabase
-    .from("leaderboard")
-    .select("*", { count: "exact" });
+  const [
+    { data: startup,   error: e1 },
+    { data: scores,    error: e2 },
+    { data: youtube,   error: e3 },
+    { data: linkedin,  error: e4 },
+    { data: rawFields, error: e5 },
+  ] = await Promise.all([
+    supabase.from("startups").select("*").eq("id", id).single(),
+    supabase.from("scores").select("*").eq("startup_id", id).order("scored_at", { ascending: false }),
+    supabase.from("youtube_signals").select("*").eq("startup_id", id).order("published_date", { ascending: false }),
+    supabase.from("linkedin_signals").select("*").eq("startup_id", id).order("post_date", { ascending: false }),
+    supabase.from("raw_fields").select("field_name,field_pack,applicability,raw_value,data_type,source_type,source_url,confidence,applicability_reason").eq("startup_id", id),
+  ]);
 
-  if (stage)    query = query.eq("stage", stage);
-  if (industry) query = query.eq("industry", industry);
-
-  query = query
-    .order(sort, { ascending: false, nullsFirst: false })
-    .range((page - 1) * limit, page * limit - 1);
-
-  const { data, error, count } = await query;
-
-  if (error) return json({ error: error.message }, 500);
+  if (e1) return json({ error: e1.message }, e1.code === "PGRST116" ? 404 : 500);
+  if (e2 || e3 || e4 || e5) return json({ error: (e2 || e3 || e4 || e5)?.message }, 500);
 
   return json({
-    data:        data ?? [],
-    total:       count ?? 0,
-    page,
-    limit,
-    pages:       Math.ceil((count ?? 0) / limit),
-    filters:     { stage, industry },
-    sort_by:     sort
+    startup,
+    latest_score: scores?.[0] ?? null,
+    all_scores:   scores ?? [],
+    youtube:      youtube ?? [],
+    linkedin:     linkedin ?? [],
+    raw_summary:  rawFields ?? [],
+    meta: {
+      youtube_count:    youtube?.length  ?? 0,
+      linkedin_count:   linkedin?.length ?? 0,
+      fields_collected: rawFields?.filter(f => f.applicability === "applicable" && f.raw_value).length ?? 0,
+    }
   });
 });
 

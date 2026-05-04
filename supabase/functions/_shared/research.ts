@@ -214,7 +214,45 @@ Composite = sum(dim_score × weight)
 Return ONLY valid JSON matching the StartupProfile schema. No markdown, no explanation text, no preamble.
 All monetary values in INR crore. Dates as YYYY-MM-DD strings. Confidence: 1.0=MCA/official, 0.9=tier1 media, 0.85=LinkedIn SERP, 0.7=aggregator, 0.5=inferred.`;
 
+function mockProfile(company: string, country: string): StartupProfile {
+  return {
+    brand_name: company, legal_name: `${company} Pvt Ltd`, cin: "U72900MH2020PTC123456",
+    website: `https://www.${company.toLowerCase().replace(/\s+/g,"")}.com`,
+    founded_date: "2020-01-01", hq_city: "Mumbai", hq_country: country,
+    auto_stage: "series_a", auto_industry: "Fintech", auto_industry_sub: "Payments",
+    auto_region: "IN-West", auto_biz_model: "B2C", auto_entity_pack: "base",
+    revenue_inr_cr: 42, revenue_fy: "FY24", revenue_yoy_pct: 35,
+    net_profit_inr_cr: -8, total_raised_usd_m: 12, last_round_type: "Series A",
+    last_round_date: "2023-06-01", last_round_size_inr_cr: 100,
+    team_size: 120, client_count: 50000, is_profitable: false,
+    glassdoor_rating: 3.8, glassdoor_reviews: 45, glassdoor_recommend: 72,
+    glassdoor_wlb: 3.5, glassdoor_culture: 3.9, glassdoor_themes: ["fast-paced","good-tech"],
+    scores: {
+      stage: "series_a", dim_founder: 72, dim_traction: 65, dim_capital: 60,
+      dim_product: 70, dim_market: 75, dim_momentum: 68,
+      w_founder: 0.20, w_traction: 0.20, w_capital: 0.15,
+      w_product: 0.15, w_market: 0.15, w_momentum: 0.15,
+      composite_score: 69, fields_applicable: 40, fields_collected: 28,
+      fields_unknown: 8, fields_not_applicable: 4, data_quality_pct: 70,
+    },
+    raw_fields: [
+      { field_name: "revenue_inr_cr", field_pack: "base", applicability: "applicable",
+        raw_value: "42", data_type: "number", source_type: "web",
+        source_url: "https://entrackr.com/mock", confidence: 0.85 }
+    ],
+    youtube: [], linkedin: [],
+  };
+}
+
 export async function researchStartup(req: ResearchRequest): Promise<StartupProfile> {
+  if (Deno.env.get("MOCK_ANTHROPIC") === "true") {
+    await req.onProgress?.(10, "[MOCK] Simulating research...");
+    await new Promise(r => setTimeout(r, 2000));
+    await req.onProgress?.(80, "[MOCK] Building profile...");
+    await new Promise(r => setTimeout(r, 1000));
+    return mockProfile(req.company, req.country);
+  }
+
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicApiKey) throw new Error("ANTHROPIC_API_KEY not set");
 

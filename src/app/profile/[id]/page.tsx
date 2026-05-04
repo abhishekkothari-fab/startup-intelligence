@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
-import { getStartup, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
+import { getStartup, getJob, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
 
 function str(v: unknown): string {
   if (v === null || v === undefined) return ""
@@ -11,20 +11,34 @@ function num(v: unknown): number {
   return Number(v) || 0
 }
 
-export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default function ProfilePage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ job_id?: string }> }) {
   const { id } = use(params)
+  const { job_id } = use(searchParams)
   const router = useRouter()
   const [profile, setProfile] = useState<FullProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
+  const [researching, setResearching] = useState(!!job_id)
+
+  const fetchProfile = () => getStartup(id).then(setProfile).catch(e => setError(e.message)).finally(() => setLoading(false))
+
+  useEffect(() => { fetchProfile() }, [id])
 
   useEffect(() => {
-    getStartup(id)
-      .then(setProfile)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [id])
+    if (!job_id || !researching) return
+    const interval = setInterval(async () => {
+      try {
+        const [p, j] = await Promise.all([getStartup(id), getJob(job_id)])
+        setProfile(p)
+        if (j.status === "completed" || j.status === "failed") {
+          setResearching(false)
+          clearInterval(interval)
+        }
+      } catch { /* ignore poll errors */ }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [id, job_id, researching])
 
   if (loading) return <LoadingState />
   if (error)   return <ErrorState error={error} onBack={() => router.push("/")} />
@@ -41,6 +55,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{str(s.brand_name)}</span>
         <span style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontFamily: "monospace" }}>Score: {score}/100</span>
       </header>
+
+      {researching && (
+        <div style={{ background: "var(--amber-lt)", borderBottom: "1px solid var(--amber-bd)", padding: "8px 1.5rem", display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--amber)" }}>
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--amber)", animation: "pulse 1.5s infinite" }}/>
+          Deep research in progress — page updates automatically every 5 seconds
+        </div>
+      )}
 
       <div style={{ display: "flex", flex: 1 }}>
         <nav style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--border)", padding: "1.25rem 0", background: "#fff", position: "sticky", top: 0, height: "calc(100vh - 56px)", overflowY: "auto" }}>

@@ -7,6 +7,7 @@ export interface ResearchRequest {
   country: string;
   jobId: string;
   onProgress?: (pct: number, note: string) => Promise<void>;
+  onEarlyData?: (partial: Partial<StartupProfile>) => Promise<void>;
 }
 
 export interface StartupProfile {
@@ -244,6 +245,50 @@ function mockProfile(company: string, country: string): StartupProfile {
   };
 }
 
+const QUICK_PROMPT = `You are a startup research assistant. Do at most 2 web searches to find basic information about this company. Return ONLY a JSON object — no markdown, no explanation — with exactly these fields (use null for anything you cannot find):
+{"brand_name":"","legal_name":null,"cin":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","total_raised_usd_m":null,"last_round_type":null,"last_round_date":null,"team_size":null}`;
+
+async function claudeCall(
+  apiKey: string,
+  systemPrompt: string,
+  messages: Array<{ role: string; content: unknown }>,
+  maxIterations: number,
+  maxTokens = 4000
+): Promise<string | null> {
+  let finalJson: string | null = null;
+  let iterations = 0;
+  while (!finalJson && iterations < maxIterations) {
+    iterations++;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 90_000);
+    let response: Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, tools: [{ type: "web_search_20250305", name: "web_search" }], messages }),
+        signal: abort.signal
+      });
+    } catch (e) { throw new Error(`API call timed out: ${e}`); }
+    finally { clearTimeout(timer); }
+    if (!response.ok) throw new Error(`Anthropic API error ${response.status}: ${await response.text()}`);
+    const data = await response.json();
+    if (data.stop_reason === "end_turn") {
+      const text = (data.content.filter((b: {type:string}) => b.type === "text") as {text:string}[]).map(b => b.text).join("");
+      const stripped = text.replace(/^```json\s*/m,"").replace(/^```\s*/m,"").replace(/```\s*$/m,"").trim();
+      const s = stripped.indexOf("{"), e = stripped.lastIndexOf("}");
+      finalJson = s !== -1 && e !== -1 ? stripped.slice(s, e + 1) : stripped;
+      break;
+    }
+    if (data.stop_reason === "tool_use") {
+      messages.push({ role: "assistant", content: data.content });
+      const results = (data.content as {type:string;id:string}[]).filter(b => b.type === "tool_use").map(b => ({ type: "tool_result", tool_use_id: b.id, content: "" }));
+      if (results.length > 0) messages.push({ role: "user", content: results });
+    } else { break; }
+  }
+  return finalJson;
+}
+
 export async function researchStartup(req: ResearchRequest): Promise<StartupProfile> {
   if (Deno.env.get("MOCK_ANTHROPIC") === "true") {
     await req.onProgress?.(10, "[MOCK] Simulating research...");
@@ -256,113 +301,39 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicApiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
-  await req.onProgress?.(5, "Starting research");
+  await req.onProgress?.(5, "Starting quick pass");
 
-  const userMessage = `Research this company and return the complete StartupProfile JSON:
-
-Company: ${req.company}
-Country: ${req.country}
-
-Run all 9 passes. Collect as much data as possible. Return ONLY the JSON object — no markdown, no preamble.`;
-
-  // Initial Claude call — runs all 9 passes using web_search tool
-  let messages: Array<{ role: string; content: unknown }> = [
-    { role: "user", content: userMessage }
-  ];
-
-  let finalJson: string | null = null;
-  let iterations = 0;
-  const MAX_ITERATIONS = 12;
-  const DEADLINE = Date.now() + 340_000; // ~5m40s — under Supabase's 400s Pro limit
-
-  await req.onProgress?.(10, "Running research passes 1–6");
-
-  while (!finalJson && iterations < MAX_ITERATIONS) {
-    if (Date.now() > DEADLINE) {
-      throw new Error("Research timed out — please try again.");
-    }
-    iterations++;
-
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 90_000); // 90s per API call
-
-    let response: Response;
+  // ── Quick pass: 2 searches, basic fields only (~30s) ──────────────
+  const quickJson = await claudeCall(
+    anthropicApiKey, QUICK_PROMPT,
+    [{ role: "user", content: `Company: ${req.company}\nCountry: ${req.country}` }],
+    4, 2000
+  );
+  if (quickJson) {
     try {
-      response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicApiKey,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 16000,
-          system: SYSTEM_PROMPT,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages
-        }),
-        signal: abort.signal
-      });
-    } catch (e) {
-      throw new Error(`Anthropic API call timed out or failed: ${e}`);
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${err}`);
-    }
-
-    const data = await response.json();
-
-    if (data.stop_reason === "end_turn") {
-      const textBlocks = data.content.filter((b: { type: string }) => b.type === "text");
-      if (textBlocks.length > 0) {
-        const rawText = textBlocks.map((b: { text: string }) => b.text).join("");
-        // Strip markdown fences if present
-        const stripped = rawText.replace(/^```json\s*/m, "").replace(/^```\s*/m, "").replace(/```\s*$/m, "").trim();
-        // Extract the outermost JSON object — ignore any prose before/after
-        const start = stripped.indexOf("{");
-        const end = stripped.lastIndexOf("}");
-        finalJson = start !== -1 && end !== -1 ? stripped.slice(start, end + 1) : stripped;
-      }
-      break;
-    }
-
-    if (data.stop_reason === "tool_use") {
-      // Progress updates based on which pass we're likely on
-      const pct = Math.min(20 + (iterations * 6), 75);
-      const passNote = iterations <= 3 ? "passes 1–3 (overview, founders, funding)" :
-                       iterations <= 6 ? "passes 4–6 (products, regulatory, signals)" :
-                       "passes 7–9 (YouTube, LinkedIn, Glassdoor)";
-      await req.onProgress?.(pct, `Research in progress — ${passNote}`);
-
-      // Append assistant message with all content blocks
-      messages.push({ role: "assistant", content: data.content });
-
-      // Build tool results for all tool_use blocks
-      const toolResults = data.content
-        .filter((b: { type: string }) => b.type === "tool_use")
-        .map((b: { id: string; name: string }) => ({
-          type: "tool_result",
-          tool_use_id: b.id,
-          content: "" // Anthropic handles the actual search execution
-        }));
-
-      if (toolResults.length > 0) {
-        messages.push({ role: "user", content: toolResults });
-      }
-    } else {
-      // Unexpected stop reason — try to extract any text
-      const textBlocks = data.content?.filter((b: { type: string }) => b.type === "text") || [];
-      if (textBlocks.length > 0) {
-        finalJson = textBlocks.map((b: { text: string }) => b.text).join("");
-      }
-      break;
-    }
+      const partial = JSON.parse(quickJson) as Partial<StartupProfile>;
+      partial.hq_country = partial.hq_country || req.country;
+      partial.brand_name = partial.brand_name || req.company;
+      partial.youtube    = partial.youtube    || [];
+      partial.linkedin   = partial.linkedin   || [];
+      partial.raw_fields = partial.raw_fields || [];
+      await req.onEarlyData?.(partial);
+      await req.onProgress?.(20, "Basic info found — deep research starting");
+    } catch { /* ignore parse errors in quick pass */ }
   }
+
+  // ── Full 9-pass research ──────────────────────────────────────────
+  await req.onProgress?.(25, "Running deep research passes");
+
+  const DEADLINE = Date.now() + 320_000;
+  if (Date.now() > DEADLINE) throw new Error("Research timed out — please try again.");
+
+  const fullMessages: Array<{ role: string; content: unknown }> = [{
+    role: "user",
+    content: `Research this company and return the complete StartupProfile JSON:\n\nCompany: ${req.company}\nCountry: ${req.country}\n\nRun all 9 passes. Collect as much data as possible. Return ONLY the JSON object — no markdown, no preamble.`
+  }];
+
+  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 12, 16000);
 
   await req.onProgress?.(80, "Parsing research results");
 

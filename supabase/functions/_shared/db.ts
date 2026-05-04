@@ -49,6 +49,42 @@ export async function updateJobProgress(
     .eq("id", jobId);
 }
 
+// ── Quick startup write (core fields only, no scores/signals) ──
+export async function writeStartupCore(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  profile: Partial<StartupProfile>,
+  jobId: string
+): Promise<string> {
+  const payload = {
+    brand_name:        profile.brand_name   || "Unknown",
+    hq_country:        profile.hq_country   || "IN",
+    legal_name:        profile.legal_name,
+    cin:               profile.cin,
+    website:           profile.website,
+    founded_date:      profile.founded_date,
+    hq_city:           profile.hq_city,
+    auto_stage:        profile.auto_stage,
+    auto_industry:     profile.auto_industry,
+    auto_industry_sub: profile.auto_industry_sub,
+    auto_region:       profile.auto_region,
+    auto_biz_model:    profile.auto_biz_model,
+    auto_entity_pack:  profile.auto_entity_pack,
+    total_raised_usd_m:  profile.total_raised_usd_m,
+    last_round_type:     profile.last_round_type,
+    last_round_date:     profile.last_round_date,
+    team_size:           profile.team_size,
+    last_collected_at: new Date().toISOString(),
+    job_id:            jobId
+  };
+  const { data, error } = await supabase
+    .from("startups")
+    .upsert(payload, { onConflict: "brand_name,hq_country", ignoreDuplicates: false })
+    .select("id")
+    .single();
+  if (error) throw new Error(`writeStartupCore failed: ${error.message}`);
+  return data.id;
+}
+
 // ── Startup + all related data write ──────────────────────────
 
 export async function writeStartupToDb(

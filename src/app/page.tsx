@@ -50,7 +50,7 @@ export default function HomePage() {
       const startupId = await pollJob(job.job_id, (pct, status) => {
         setJobPct(pct); setJobStatus(status)
       })
-      router.push(`/profile/${startupId}`)
+      router.push(`/profile/${startupId}?job_id=${job.job_id}`)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Research failed")
       setJobStatus("failed")

@@ -10,7 +10,8 @@ import {
   getSupabaseClient,
   createJob,
   updateJobProgress,
-  writeStartupToDb
+  writeStartupToDb,
+  writeStartupCore
 } from "../_shared/db.ts";
 
 const CORS_HEADERS = {
@@ -119,6 +120,15 @@ async function runResearch(jobId: string, company: string, country: string): Pro
       onProgress: async (pct, note) => {
         console.log(`[${jobId}] ${pct}% — ${note}`);
         await updateJobProgress(supabase, jobId, pct, "running");
+      },
+      onEarlyData: async (partial) => {
+        try {
+          const earlyId = await writeStartupCore(supabase, partial, jobId);
+          await updateJobProgress(supabase, jobId, 20, "running", earlyId);
+          console.log(`[${jobId}] Early data written — startup ID: ${earlyId}`);
+        } catch (e) {
+          console.warn(`[${jobId}] Early write failed (non-fatal):`, e);
+        }
       }
     });
 

@@ -131,7 +131,7 @@ export async function pollJob(
       try {
         const job = await getJob(jobId)
         onProgress(job.progress_pct, job.status)
-        if (job.status === "completed" && job.startup_id) return resolve(job.startup_id)
+        if (job.startup_id) return resolve(job.startup_id)
         if (job.status === "failed") return reject(new Error(job.error_message ?? "Research failed"))
         setTimeout(tick, intervalMs)
       } catch (e) {

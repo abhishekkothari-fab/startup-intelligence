@@ -272,35 +272,43 @@ Run all 9 passes. Collect as much data as possible. Return ONLY the JSON object 
 
   let finalJson: string | null = null;
   let iterations = 0;
-  const MAX_ITERATIONS = 20;
-  const DEADLINE = Date.now() + 300_000; // 5-minute hard deadline
+  const MAX_ITERATIONS = 12;
+  const DEADLINE = Date.now() + 340_000; // ~5m40s — under Supabase's 400s Pro limit
 
   await req.onProgress?.(10, "Running research passes 1–6");
 
   while (!finalJson && iterations < MAX_ITERATIONS) {
     if (Date.now() > DEADLINE) {
-      throw new Error("Research timed out after 5 minutes — partial data not saved. Try again.");
+      throw new Error("Research timed out — please try again.");
     }
     iterations++;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 16000,
-        system: SYSTEM_PROMPT,
-        tools: [{
-          type: "web_search_20250305",
-          name: "web_search"
-        }],
-        messages
-      })
-    });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 90_000); // 90s per API call
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicApiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 16000,
+          system: SYSTEM_PROMPT,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages
+        }),
+        signal: abort.signal
+      });
+    } catch (e) {
+      throw new Error(`Anthropic API call timed out or failed: ${e}`);
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       const err = await response.text();

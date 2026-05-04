@@ -260,7 +260,7 @@ async function claudeCall(
   while (!finalJson && iterations < maxIterations) {
     iterations++;
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 120_000);
+    const timer = setTimeout(() => abort.abort(), 100_000); // 100s — fits within free-tier 150s wall clock
     let response: Response;
     try {
       response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -269,7 +269,7 @@ async function claudeCall(
         body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }], messages }),
         signal: abort.signal
       });
-    } catch (e) { throw new Error(`API call timed out: ${e}`); }
+    } catch (e) { throw new Error(`API call timed out or failed: ${e}`); }
     finally { clearTimeout(timer); }
     if (!response.ok) throw new Error(`Anthropic API error ${response.status}: ${await response.text()}`);
     const data = await response.json();
@@ -343,7 +343,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     content: `Research this company and return the complete StartupProfile JSON:\n\nCompany: ${req.company}\nCountry: ${req.country}\n\nRun all 9 passes. Collect as much data as possible. Return ONLY the JSON object — no markdown, no preamble.`
   }];
 
-  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 12, 16000);
+  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 6, 6000);
 
   await req.onProgress?.(80, "Parsing research results");
 

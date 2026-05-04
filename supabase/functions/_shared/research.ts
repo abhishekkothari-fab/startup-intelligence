@@ -301,6 +301,16 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicApiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
+  // Preflight: validate the key before starting research
+  const preflight = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": anthropicApiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1, messages: [{ role: "user", content: "hi" }] })
+  });
+  if (preflight.status === 401) {
+    throw new Error("ANTHROPIC_KEY_STALE: Go to Supabase Edge Functions → Secrets → re-save ANTHROPIC_API_KEY (same value is fine)");
+  }
+
   await req.onProgress?.(5, "Starting quick pass");
 
   // ── Quick pass: 2 searches, basic fields only (~30s) ──────────────

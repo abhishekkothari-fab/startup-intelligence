@@ -253,20 +253,24 @@ async function claudeCall(
   systemPrompt: string,
   messages: Array<{ role: string; content: unknown }>,
   maxIterations: number,
-  maxTokens = 4000
+  maxTokens = 4000,
+  webSearch = true
 ): Promise<string | null> {
   let finalJson: string | null = null;
   let iterations = 0;
   while (!finalJson && iterations < maxIterations) {
     iterations++;
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 100_000); // 100s — fits within free-tier 150s wall clock
+    const timeoutMs = webSearch ? 100_000 : 60_000;
+    const timer = setTimeout(() => abort.abort(), timeoutMs);
+    const body: Record<string, unknown> = { model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, messages };
+    if (webSearch) body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
     let response: Response;
     try {
       response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }], messages }),
+        body: JSON.stringify(body),
         signal: abort.signal
       });
     } catch (e) { throw new Error(`API call timed out or failed: ${e}`); }
@@ -340,10 +344,10 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
 
   const fullMessages: Array<{ role: string; content: unknown }> = [{
     role: "user",
-    content: `Research this company and return the complete StartupProfile JSON:\n\nCompany: ${req.company}\nCountry: ${req.country}\n\nRun all 9 passes. Collect as much data as possible. Return ONLY the JSON object — no markdown, no preamble.`
+    content: `Generate the complete StartupProfile JSON for this company using your training knowledge:\n\nCompany: ${req.company}\nCountry: ${req.country}\n\nBasic facts already collected:\n${quickJson ?? "none"}\n\nFill in all remaining fields including scores, raw_fields, youtube, linkedin, glassdoor, and financials. Return ONLY the JSON object — no markdown, no preamble.`
   }];
 
-  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 6, 6000);
+  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 3, 6000, false);
 
   await req.onProgress?.(80, "Parsing research results");
 

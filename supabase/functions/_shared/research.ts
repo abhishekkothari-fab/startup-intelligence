@@ -1,370 +1,575 @@
 // supabase/functions/_shared/research.ts
-// Shared research engine: calls claude-sonnet-4-6 with web_search tool
-// Returns structured StartupProfile JSON
+
+export type PassStatus = "pending" | "completed" | "failed" | "skipped"
+export type PassesStatus = Record<string, {
+  status: PassStatus
+  completed_at?: string
+  error?: string
+}>
+
+export const PASS_NAMES = [
+  "overview", "founders", "glassdoor", "funding",
+  "products", "regulatory", "signals", "youtube", "linkedin"
+] as const
+export type PassName = typeof PASS_NAMES[number]
+
+export const PASS_PROGRESS: Record<PassName, number> = {
+  overview: 10, founders: 20, glassdoor: 28, funding: 38,
+  products: 48, regulatory: 55, signals: 65, youtube: 75, linkedin: 85
+}
 
 export interface ResearchRequest {
-  company: string;
-  country: string;
-  jobId: string;
-  onProgress?: (pct: number, note: string) => Promise<void>;
-  onEarlyData?: (partial: Partial<StartupProfile>) => Promise<void>;
+  company: string
+  country: string
+  jobId: string
+  onProgress?: (pct: number, note: string) => Promise<void>
+  onPassComplete?: (
+    passName: PassName,
+    partial: Partial<StartupProfile>,
+    passesStatus: PassesStatus
+  ) => Promise<void>
+  existingPassesStatus?: PassesStatus
 }
 
 export interface StartupProfile {
-  // Core
-  brand_name: string;
-  legal_name?: string;
-  cin?: string;
-  website?: string;
-  founded_date?: string;
-  hq_city?: string;
-  hq_country: string;
-
-  // Classification
-  auto_stage: string;
-  auto_industry: string;
-  auto_industry_sub: string;
-  auto_region: string;
-  auto_biz_model: string;
-  auto_entity_pack: string;
-
-  // Financials
-  revenue_inr_cr?: number;
-  revenue_fy?: string;
-  revenue_yoy_pct?: number;
-  net_profit_inr_cr?: number;
-  total_raised_usd_m?: number;
-  last_round_type?: string;
-  last_round_date?: string;
-  last_round_size_inr_cr?: number;
-  team_size?: number;
-  client_count?: number;
-  is_profitable?: boolean;
-
-  // Scores
+  brand_name: string
+  legal_name?: string
+  cin?: string
+  website?: string
+  founded_date?: string
+  hq_city?: string
+  hq_country: string
+  auto_stage: string
+  auto_industry: string
+  auto_industry_sub: string
+  auto_region: string
+  auto_biz_model: string
+  auto_entity_pack: string
+  revenue_inr_cr?: number
+  revenue_fy?: string
+  revenue_yoy_pct?: number
+  net_profit_inr_cr?: number
+  total_raised_usd_m?: number
+  last_round_type?: string
+  last_round_date?: string
+  last_round_size_inr_cr?: number
+  team_size?: number
+  client_count?: number
+  is_profitable?: boolean
+  glassdoor_rating?: number
+  glassdoor_reviews?: number
+  glassdoor_recommend?: number
+  glassdoor_wlb?: number
+  glassdoor_culture?: number
+  glassdoor_themes?: string
   scores: {
-    stage: string;
-    dim_founder: number;
-    dim_traction: number;
-    dim_capital: number;
-    dim_product: number;
-    dim_market: number;
-    dim_momentum: number;
-    w_founder: number;
-    w_traction: number;
-    w_capital: number;
-    w_product: number;
-    w_market: number;
-    w_momentum: number;
-    composite_score: number;
-    fields_applicable: number;
-    fields_collected: number;
-    fields_unknown: number;
-    fields_not_applicable: number;
-    data_quality_pct: number;
-    r_funding_velocity?: number;
-    r_traction_velocity?: number;
-    r_founder_mkt_fit?: number;
-    r_recognition_momentum?: number;
-    r_investor_quality?: number;
-    r_product_surface?: number;
-    r_capital_efficiency?: number;
-    r_valuation_arr_mult?: number;
-    r_team_leverage?: number;
-    r_grant_equity_ratio?: number;
-    r_round_up_ratio?: number;
-    r_gnpa_pct?: number;
-    r_nim_pct?: number;
-    r_car_pct?: number;
-    r_roe_pct?: number;
-  };
-
-  // Raw fields
+    stage: string
+    dim_founder: number
+    dim_traction: number
+    dim_capital: number
+    dim_product: number
+    dim_market: number
+    dim_momentum: number
+    w_founder: number
+    w_traction: number
+    w_capital: number
+    w_product: number
+    w_market: number
+    w_momentum: number
+    composite_score: number
+    fields_applicable: number
+    fields_collected: number
+    fields_unknown: number
+    fields_not_applicable: number
+    data_quality_pct: number
+    r_funding_velocity?: number
+    r_traction_velocity?: number
+    r_founder_mkt_fit?: number
+    r_recognition_momentum?: number
+    r_investor_quality?: number
+    r_product_surface?: number
+    r_capital_efficiency?: number
+    r_valuation_arr_mult?: number
+    r_team_leverage?: number
+    r_grant_equity_ratio?: number
+    r_round_up_ratio?: number
+    r_gnpa_pct?: number
+    r_nim_pct?: number
+    r_car_pct?: number
+    r_roe_pct?: number
+  }
   raw_fields: Array<{
-    field_name: string;
-    field_pack: string;
-    applicability: "applicable" | "not_applicable" | "unknown";
-    applicability_reason?: string;
-    raw_value?: string;
-    data_type?: string;
-    source_type: string;
-    source_url?: string;
-    confidence?: number;
-  }>;
-
-  // YouTube (Pass 7)
+    field_name: string
+    field_pack: string
+    applicability: "applicable" | "not_applicable" | "unknown"
+    applicability_reason?: string
+    raw_value?: string
+    data_type?: string
+    source_type: string
+    source_url?: string
+    confidence?: number
+  }>
   youtube: Array<{
-    video_title: string;
-    video_url?: string;
-    published_date?: string;
-    video_type: string;
-    channel_name?: string;
-    is_own_channel: boolean;
-    key_quote?: string;
-    signal_tags?: string[];
-  }>;
-
-  // LinkedIn (Passes 8 + 9)
+    video_title: string
+    video_url?: string
+    published_date?: string
+    video_type: string
+    channel_name?: string
+    is_own_channel: boolean
+    key_quote?: string
+    signal_tags?: string[]
+    confidence?: number
+  }>
   linkedin: Array<{
-    pass: 8 | 9;
-    author_name?: string;
-    author_org?: string;
-    author_role?: string;
-    signal_type: string;
-    post_text?: string;
-    post_url?: string;
-    post_date?: string;
-    confidence: number;
-  }>;
-
-  // Glassdoor
-  glassdoor_rating?: number;
-  glassdoor_reviews?: number;
-  glassdoor_recommend?: number;
-  glassdoor_wlb?: number;
-  glassdoor_culture?: number;
-  glassdoor_themes?: string;
+    pass: 8 | 9
+    author_name?: string
+    author_org?: string
+    author_role?: string
+    signal_type: string
+    post_text?: string
+    post_url?: string
+    post_date?: string
+    confidence: number
+  }>
 }
 
-const SYSTEM_PROMPT = `You are a startup intelligence research analyst. Your job is to research a company across 9 passes of data collection, then return ALL findings as a single structured JSON object.
+// ── Per-pass specs ───────────────────────────────────────────────
 
-## Research passes to execute (use web_search for each):
+interface PassSpec {
+  system: string
+  user: (co: string, country: string) => string
+  maxTokens: number
+}
 
-PASS 1 — Company overview
-- Search: "[Company] startup profile [country]"
-- Search: "[Company] founded founders history"
-- Sources: Crunchbase, Tracxn, YourStory, Inc42
+const PASS_SPECS: Record<PassName, PassSpec> = {
+  overview: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+{"brand_name":"","legal_name":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"IN","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","team_size":null}
+auto_stage: pre_seed|seed|series_a|series_b_plus|growth
+auto_industry: BFSI|AI_Infra|D2C|Health|Logistics|EdTech_HRTech
+auto_region: metro_t1(Mumbai/Delhi/Bengaluru)|metro_t2(Pune/Hyd/Chennai/Ahmedabad)|non_metro
+auto_biz_model: enterprise_saas|usage|d2c|nbfc|deeptech_ip
+auto_entity_pack: base OR base|saas OR base|d2c|consumer OR base|nbfc|lending`,
+    user: (co, country) => `Search: "${co} startup ${country} company overview founders profile" — return overview JSON for ${co}.`,
+    maxTokens: 1500,
+  },
 
-PASS 2 — Founders & Glassdoor
-- Search: "[Company] founders background MBA education"
-- Search: "[Company] CEO CXO leadership team 2025 2026"
-- Search: "[Company] Glassdoor rating reviews employees"
-- Extract: glassdoor_rating (numeric), glassdoor_review_count, culture themes from SERP snippet only. Do NOT attempt to access Glassdoor directly.
+  founders: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+{"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
+Capture these field_names: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.`,
+    user: (co) => `Search: "${co} founders CEO CTO leadership background education LinkedIn" — return founders raw_fields JSON.`,
+    maxTokens: 2000,
+  },
 
-PASS 3 — Funding
-- Search: "[Company] funding rounds investors Series A B C"
-- Search: "[Company] raised valuation 2024 2025 2026"
-- Cross-reference: Crunchbase, Tracxn, TheKredible, VCCircle, Inc42
+  glassdoor: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+{"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_themes":null}
+glassdoor_rating: float, glassdoor_reviews: int, glassdoor_recommend: int (% who recommend), glassdoor_themes: CSV string of 3-5 culture themes.
+Extract from SERP snippets only — do NOT visit Glassdoor directly.`,
+    user: (co) => `Search: "${co} Glassdoor rating employee reviews work culture 2024 2025" — return glassdoor JSON from snippets.`,
+    maxTokens: 800,
+  },
 
-PASS 4 — Products
-- Fetch company website directly for product pages
-- Search: "[Company] products features API 2025"
+  funding: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+{"total_raised_usd_m":null,"last_round_type":null,"last_round_date":null,"last_round_size_inr_cr":null,"raw_fields":[]}
+last_round_type: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
+Also capture in raw_fields: investor_1_name, investor_1_tier (tier1/tier2/angel/govt), investor_2_name (if exists), round_count (number).`,
+    user: (co) => `Search: "${co} funding rounds investors raised valuation 2024 2025" — return funding JSON.`,
+    maxTokens: 2000,
+  },
 
-PASS 5 — Regulatory (for Indian companies)
-- Search: "[Company legal name] MCA CIN incorporation"
-- Sources: Tofler, ZaubaCorp, FalconEbiz
+  products: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+{"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
+Capture: product_count (number), product_1_name, product_1_description, has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/reason), patent_count (number or 0).`,
+    user: (co) => `Search: "${co} products features API technology platform 2025" — return products raw_fields JSON.`,
+    maxTokens: 1500,
+  },
 
-PASS 6 — Strategic signals
-- Search: "[Company] news 2025 2026 expansion partnership awards"
-- Search: "[Company] IPO ready funding latest"
+  regulatory: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+{"cin":null,"legal_name":null,"raw_fields":[]}
+CIN format: U12345AB2020PTC123456. Capture in raw_fields: incorporation_date, registered_state, mca_status (active/struck_off), authorized_capital_cr, paid_up_capital_cr.`,
+    user: (co) => `Search: "${co} MCA CIN India company registration incorporation" — return regulatory JSON.`,
+    maxTokens: 1000,
+  },
 
-PASS 7 — YouTube
-- Search: "[Company] site:youtube.com"
-- Search: "[Company] [founder name] YouTube interview podcast"
-- For each video found: capture title, URL, date, type (founder_on_camera/podcast_feature/product_demo/culture_content/news_coverage), channel name, is_own_channel
+  signals: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+{"revenue_inr_cr":null,"revenue_fy":null,"revenue_yoy_pct":null,"net_profit_inr_cr":null,"is_profitable":null,"client_count":null,"raw_fields":[]}
+Also capture in raw_fields: latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market.`,
+    user: (co) => `Search: "${co} revenue financials ARR growth news 2024 2025 clients" — return signals JSON.`,
+    maxTokens: 1500,
+  },
 
-PASS 8 — LinkedIn founder posts (web search only, no scraping)
-- Search: site:linkedin.com "[Founder Full Name]" "[Company]"
-- Extract: traction claims, product announcements, hiring posts, founder philosophy, strategic themes
+  youtube: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+{"youtube":[{"video_title":"","video_url":null,"published_date":null,"video_type":"","channel_name":null,"is_own_channel":false,"key_quote":null,"confidence":0.9}]}
+video_type: founder_on_camera|podcast_feature|product_demo|culture_content|news_coverage
+Capture up to 8 videos from YouTube search results.`,
+    user: (co) => `Search: "${co} site:youtube.com" — return youtube signals JSON.`,
+    maxTokens: 2000,
+  },
 
-PASS 9 — LinkedIn company mentions (web search only, targeted)
-- Search: site:linkedin.com "[Company]" "excited to announce" OR "partner" OR "portfolio company"
-- Search: site:linkedin.com "[Company]" "invested" OR "proud to back"
-- Extract: investor validation posts, client/partner testimonials, compliance milestone announcements
+  linkedin: {
+    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+{"linkedin":[{"pass":9,"author_name":null,"author_org":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
+signal_type: founder_traction_claim|investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
+Capture up to 6 posts from LinkedIn SERP snippets.`,
+    user: (co) => `Search: site:linkedin.com "${co}" "excited to announce" OR "proud to back" OR "invested" OR "partner" — return linkedin signals JSON.`,
+    maxTokens: 2000,
+  },
+}
 
-## Classification rules:
+// ── Helpers ───────────────────────────────────────────────────────
 
-STAGE (first match wins):
-- pre_idea: no equity, no grants, no live product
-- pre_seed: no equity but product live or has grants
-- seed: has Seed round
-- series_a: last round = Series A
-- series_b_plus: last round = Series B/C/D
-- growth: last round = Pre-IPO, Series E+, or IPO
+function parseJson(text: string): Record<string, unknown> | null {
+  const s = text.indexOf("{")
+  const e = text.lastIndexOf("}")
+  if (s === -1 || e === -1) return null
+  try { return JSON.parse(text.slice(s, e + 1)) } catch { return null }
+}
 
-INDUSTRY: BFSI | AI_Infra | D2C | Health | Logistics | EdTech_HRTech
+function mergePartial(
+  base: Partial<StartupProfile>,
+  incoming: Partial<StartupProfile>
+): Partial<StartupProfile> {
+  const result = { ...base }
+  for (const [k, v] of Object.entries(incoming)) {
+    if (v === null || v === undefined) continue
+    if (k === "youtube" || k === "linkedin" || k === "raw_fields") {
+      const existing = ((result as Record<string, unknown>)[k] as unknown[]) || []
+      ;(result as Record<string, unknown>)[k] = [...existing, ...(v as unknown[])]
+    } else {
+      ;(result as Record<string, unknown>)[k] = v
+    }
+  }
+  return result
+}
 
-INDUSTRY_SUB: NBFC_Lending | VoiceAI_BFSI | IDP_BFSI | RegTech_Identity | CloudOptimisation | FastFashion_Denim | Skincare | FoodBev | DigitalHealth etc.
+// ── Claude API call ───────────────────────────────────────────────
 
-REGION: metro_t1 (Mumbai/Delhi/Bengaluru) | metro_t2 (Pune/Hyderabad/Chennai/Ahmedabad) | non_metro
+async function claudeCall(
+  apiKey: string,
+  system: string,
+  userMsg: string,
+  maxTokens: number,
+  maxSearches: number
+): Promise<string | null> {
+  const messages: Array<{ role: string; content: unknown }> = [
+    { role: "user", content: userMsg }
+  ]
+  const bodyBase: Record<string, unknown> = {
+    model: "claude-sonnet-4-6",
+    max_tokens: maxTokens,
+    system,
+  }
+  if (maxSearches > 0) {
+    bodyBase.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: maxSearches }]
+  }
 
-BIZ_MODEL: enterprise_saas | usage | d2c | nbfc | deeptech_ip
+  const timeoutMs = maxSearches > 0 ? 50_000 : 30_000
 
-ENTITY_PACK: base | base|saas | base|d2c|consumer | base|nbfc|lending
+  for (let i = 0; i < 4; i++) {
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), timeoutMs)
+    let res: Response
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({ ...bodyBase, messages }),
+        signal: abort.signal,
+      })
+    } catch (e) {
+      throw new Error(`API call failed: ${e}`)
+    } finally {
+      clearTimeout(timer)
+    }
 
-## Scoring weights by stage:
-- pre_seed:   founder=0.35, traction=0.05, capital=0.15, product=0.20, market=0.15, momentum=0.10
-- seed:       founder=0.25, traction=0.20, capital=0.20, product=0.20, market=0.10, momentum=0.05
-- series_a:   founder=0.15, traction=0.30, capital=0.20, product=0.15, market=0.10, momentum=0.10
-- series_b_plus: founder=0.10, traction=0.35, capital=0.20, product=0.15, market=0.10, momentum=0.10
-- growth:     founder=0.05, traction=0.40, capital=0.15, product=0.15, market=0.15, momentum=0.10
+    if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`)
 
-## Dimension scoring (0–100):
-dim_founder: IIT/IIM/equivalent (+20), prior startup (+20), prior exit (+20), domain ≥5yr (+20), tier-1 advisor (+10), known networks (+10)
-dim_traction: revenue none=0, pilots=20, <1Cr=40, 1-10Cr=60, 10-50Cr=75, 50Cr+=90; cash-flow positive +10
-dim_capital: Tier-1 VC (Sequoia/Accel/Matrix/Elevation)=90+, Tier-2 (Blume/3one4/Stellaris)=70-85, Angels/grants=30-50
-dim_product: live product+30, technical moat+30, multiple products+20, patents+10, public demo+10
-dim_market: TAM>$1Bn+30, regulatory tailwind+20, low competition+20, India-native+15, high growth+15
-dim_momentum: global competition win+30, national win+20, tier-1 incubator+20, major press+15, Tracxn/CB inclusion+15
+    const data = await res.json()
 
-Unknown field penalty: -12% per applicable field with unknown value per dimension.
+    if (data.stop_reason === "end_turn") {
+      return (data.content as { type: string; text?: string }[])
+        .filter(b => b.type === "text")
+        .map(b => b.text || "")
+        .join("")
+    }
 
-Composite = sum(dim_score × weight)
+    if (data.stop_reason === "tool_use") {
+      messages.push({ role: "assistant", content: data.content })
+      const toolResults = (data.content as { type: string; id: string }[])
+        .filter(b => b.type === "tool_use")
+        .map(b => ({ type: "tool_result", tool_use_id: b.id, content: "" }))
+      if (toolResults.length > 0) messages.push({ role: "user", content: toolResults })
+      continue
+    }
 
-## Output format:
-Return ONLY valid JSON matching the StartupProfile schema. No markdown, no explanation text, no preamble.
-All monetary values in INR crore. Dates as YYYY-MM-DD strings. Confidence: 1.0=MCA/official, 0.9=tier1 media, 0.85=LinkedIn SERP, 0.7=aggregator, 0.5=inferred.`;
+    break
+  }
+  return null
+}
+
+// ── Scoring pass (no web search) ─────────────────────────────────
+
+async function computeScores(
+  apiKey: string,
+  company: string,
+  merged: Partial<StartupProfile>
+): Promise<Partial<StartupProfile>> {
+  const system = `Startup scoring analyst. Compute scores based on collected data. Return ONLY valid JSON.
+Stage weights → pre_seed: f=0.35,t=0.05,c=0.15,p=0.20,m=0.15,mo=0.10 | seed: f=0.25,t=0.20,c=0.20,p=0.20,m=0.10,mo=0.05 | series_a: f=0.15,t=0.30,c=0.20,p=0.15,m=0.10,mo=0.10 | series_b_plus: f=0.10,t=0.35,c=0.20,p=0.15,m=0.10,mo=0.10 | growth: f=0.05,t=0.40,c=0.15,p=0.15,m=0.15,mo=0.10
+dim_founder(0-100): IIT/IIM+20, prior_startup+20, prior_exit+20, domain≥5yr+20, tier1_advisor+10, network+10
+dim_traction(0-100): no_rev=0,pilots=20,<1Cr=40,1-10Cr=60,10-50Cr=75,50Cr+=90; cash_flow_positive+10
+dim_capital(0-100): tier1_VC(Sequoia/Accel/Matrix/Elevation)=90+, tier2=70-85, angels=30-50, no_funding=10
+dim_product(0-100): live+30, technical_moat+30, multi_products+20, patents+10, public_demo+10
+dim_market(0-100): TAM>$1Bn+30, reg_tailwind+20, low_competition+20, india_native+15, high_growth+15
+dim_momentum(0-100): global_win+30, national_win+20, tier1_incubator+20, major_press+15, tracxn_inclusion+15
+Unknown_field_penalty: -12% per unknown applicable field per dimension.
+composite = sum(dim * weight).`
+
+  const userMsg = `Company: ${company}
+Stage: ${merged.auto_stage || "seed"}
+Collected data:
+${JSON.stringify(merged, null, 2)}
+
+Return ONLY:
+{"scores":{"stage":"","dim_founder":0,"dim_traction":0,"dim_capital":0,"dim_product":0,"dim_market":0,"dim_momentum":0,"w_founder":0,"w_traction":0,"w_capital":0,"w_product":0,"w_market":0,"w_momentum":0,"composite_score":0,"fields_applicable":0,"fields_collected":0,"fields_unknown":0,"fields_not_applicable":0,"data_quality_pct":0}}`
+
+  const text = await claudeCall(apiKey, system, userMsg, 1500, 0)
+  if (!text) return {}
+  const obj = parseJson(text)
+  return (obj as Partial<StartupProfile>) || {}
+}
+
+// ── Mock ──────────────────────────────────────────────────────────
 
 function mockProfile(company: string, country: string): StartupProfile {
   return {
     brand_name: company, legal_name: `${company} Pvt Ltd`, cin: "U72900MH2020PTC123456",
-    website: `https://www.${company.toLowerCase().replace(/\s+/g,"")}.com`,
+    website: `https://www.${company.toLowerCase().replace(/\s+/g, "")}.com`,
     founded_date: "2020-01-01", hq_city: "Mumbai", hq_country: country,
-    auto_stage: "series_a", auto_industry: "Fintech", auto_industry_sub: "Payments",
-    auto_region: "IN-West", auto_biz_model: "B2C", auto_entity_pack: "base",
+    auto_stage: "series_a", auto_industry: "D2C", auto_industry_sub: "FastFashion",
+    auto_region: "metro_t1", auto_biz_model: "d2c", auto_entity_pack: "base|d2c|consumer",
     revenue_inr_cr: 42, revenue_fy: "FY24", revenue_yoy_pct: 35,
     net_profit_inr_cr: -8, total_raised_usd_m: 12, last_round_type: "Series A",
     last_round_date: "2023-06-01", last_round_size_inr_cr: 100,
     team_size: 120, client_count: 50000, is_profitable: false,
     glassdoor_rating: 3.8, glassdoor_reviews: 45, glassdoor_recommend: 72,
-    glassdoor_wlb: 3.5, glassdoor_culture: 3.9, glassdoor_themes: ["fast-paced","good-tech"],
+    glassdoor_wlb: 3.5, glassdoor_culture: 3.9, glassdoor_themes: "fast-paced,good-tech,growth-culture",
     scores: {
       stage: "series_a", dim_founder: 72, dim_traction: 65, dim_capital: 60,
       dim_product: 70, dim_market: 75, dim_momentum: 68,
-      w_founder: 0.20, w_traction: 0.20, w_capital: 0.15,
-      w_product: 0.15, w_market: 0.15, w_momentum: 0.15,
+      w_founder: 0.15, w_traction: 0.30, w_capital: 0.20,
+      w_product: 0.15, w_market: 0.10, w_momentum: 0.10,
       composite_score: 69, fields_applicable: 40, fields_collected: 28,
       fields_unknown: 8, fields_not_applicable: 4, data_quality_pct: 70,
     },
     raw_fields: [
-      { field_name: "revenue_inr_cr", field_pack: "base", applicability: "applicable",
+      {
+        field_name: "revenue_inr_cr", field_pack: "base", applicability: "applicable",
         raw_value: "42", data_type: "number", source_type: "web",
-        source_url: "https://entrackr.com/mock", confidence: 0.85 }
+        source_url: "https://entrackr.com/mock", confidence: 0.85
+      }
     ],
     youtube: [], linkedin: [],
-  };
-}
-
-const QUICK_PROMPT = `You are a startup research assistant. Do at most 2 web searches to find basic information about this company. Return ONLY a JSON object — no markdown, no explanation — with exactly these fields (use null for anything you cannot find):
-{"brand_name":"","legal_name":null,"cin":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","total_raised_usd_m":null,"last_round_type":null,"last_round_date":null,"team_size":null}`;
-
-async function claudeCall(
-  apiKey: string,
-  systemPrompt: string,
-  messages: Array<{ role: string; content: unknown }>,
-  maxIterations: number,
-  maxTokens = 4000,
-  webSearch = true
-): Promise<string | null> {
-  let finalJson: string | null = null;
-  let iterations = 0;
-  while (!finalJson && iterations < maxIterations) {
-    iterations++;
-    const abort = new AbortController();
-    const timeoutMs = webSearch ? 100_000 : 60_000;
-    const timer = setTimeout(() => abort.abort(), timeoutMs);
-    const body: Record<string, unknown> = { model: "claude-sonnet-4-6", max_tokens: maxTokens, system: systemPrompt, messages };
-    if (webSearch) body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
-    let response: Response;
-    try {
-      response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify(body),
-        signal: abort.signal
-      });
-    } catch (e) { throw new Error(`API call timed out or failed: ${e}`); }
-    finally { clearTimeout(timer); }
-    if (!response.ok) throw new Error(`Anthropic API error ${response.status}: ${await response.text()}`);
-    const data = await response.json();
-    if (data.stop_reason === "end_turn") {
-      const text = (data.content.filter((b: {type:string}) => b.type === "text") as {text:string}[]).map(b => b.text).join("");
-      const stripped = text.replace(/^```json\s*/m,"").replace(/^```\s*/m,"").replace(/```\s*$/m,"").trim();
-      const s = stripped.indexOf("{"), e = stripped.lastIndexOf("}");
-      finalJson = s !== -1 && e !== -1 ? stripped.slice(s, e + 1) : stripped;
-      break;
-    }
-    if (data.stop_reason === "tool_use") {
-      messages.push({ role: "assistant", content: data.content });
-      const results = (data.content as {type:string;id:string}[]).filter(b => b.type === "tool_use").map(b => ({ type: "tool_result", tool_use_id: b.id, content: "" }));
-      if (results.length > 0) messages.push({ role: "user", content: results });
-    } else { break; }
   }
-  return finalJson;
 }
+
+// ── Main orchestrator ─────────────────────────────────────────────
 
 export async function researchStartup(req: ResearchRequest): Promise<StartupProfile> {
   if (Deno.env.get("MOCK_ANTHROPIC") === "true") {
-    await req.onProgress?.(10, "[MOCK] Simulating research...");
-    await new Promise(r => setTimeout(r, 2000));
-    await req.onProgress?.(80, "[MOCK] Building profile...");
-    await new Promise(r => setTimeout(r, 1000));
-    return mockProfile(req.company, req.country);
+    await req.onProgress?.(10, "[MOCK] Simulating research...")
+    await new Promise(r => setTimeout(r, 1500))
+    await req.onProgress?.(80, "[MOCK] Building profile...")
+    await new Promise(r => setTimeout(r, 1000))
+    const mock = mockProfile(req.company, req.country)
+    const mockStatus: PassesStatus = {}
+    for (const p of PASS_NAMES) {
+      mockStatus[p] = { status: "completed", completed_at: new Date().toISOString() }
+    }
+    await req.onPassComplete?.("overview", mock, mockStatus)
+    return mock
   }
 
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) throw new Error("ANTHROPIC_API_KEY not set");
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY")
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set")
 
-  // Preflight: validate the key before starting research
-  const preflight = await fetch("https://api.anthropic.com/v1/messages", {
+  // Preflight key validation
+  const pf = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": anthropicApiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1, messages: [{ role: "user", content: "hi" }] })
-  });
-  if (preflight.status === 401) {
-    throw new Error("ANTHROPIC_KEY_STALE: Go to Supabase Edge Functions → Secrets → re-save ANTHROPIC_API_KEY (same value is fine)");
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1,
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  })
+  if (pf.status === 401) {
+    throw new Error(
+      "ANTHROPIC_KEY_STALE: Go to Supabase → Edge Functions → Secrets → re-save ANTHROPIC_API_KEY"
+    )
   }
 
-  await req.onProgress?.(5, "Starting quick pass");
+  const disabledPasses = new Set(
+    (Deno.env.get("DISABLED_PASSES") || "")
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean)
+  )
 
-  // ── Quick pass: 2 searches, basic fields only (~30s) ──────────────
-  const quickJson = await claudeCall(
-    anthropicApiKey, QUICK_PROMPT,
-    [{ role: "user", content: `Company: ${req.company}\nCountry: ${req.country}` }],
-    4, 2000
-  );
-  if (quickJson) {
+  const passesStatus: PassesStatus = { ...(req.existingPassesStatus || {}) }
+  let merged: Partial<StartupProfile> = {
+    brand_name: req.company,
+    hq_country: req.country,
+    youtube: [],
+    linkedin: [],
+    raw_fields: [],
+  }
+
+  await req.onProgress?.(5, "Starting research")
+
+  for (const passName of PASS_NAMES) {
+    if (passesStatus[passName]?.status === "completed") {
+      console.log(`[${req.jobId}] Pass ${passName}: already completed, skipping`)
+      continue
+    }
+
+    if (disabledPasses.has(passName)) {
+      passesStatus[passName] = { status: "skipped", completed_at: new Date().toISOString() }
+      console.log(`[${req.jobId}] Pass ${passName}: disabled`)
+      continue
+    }
+
+    await req.onProgress?.(PASS_PROGRESS[passName] - 3, `Running: ${passName}`)
+    console.log(`[${req.jobId}] Pass ${passName}: starting`)
+
     try {
-      const partial = JSON.parse(quickJson) as Partial<StartupProfile>;
-      partial.hq_country = partial.hq_country || req.country;
-      partial.brand_name = partial.brand_name || req.company;
-      partial.youtube    = partial.youtube    || [];
-      partial.linkedin   = partial.linkedin   || [];
-      partial.raw_fields = partial.raw_fields || [];
-      await req.onEarlyData?.(partial);
-      await req.onProgress?.(20, "Basic info found — deep research starting");
-    } catch { /* ignore parse errors in quick pass */ }
+      const spec = PASS_SPECS[passName]
+      const text = await claudeCall(
+        apiKey,
+        spec.system,
+        spec.user(req.company, req.country),
+        spec.maxTokens,
+        1
+      )
+
+      if (!text) {
+        passesStatus[passName] = {
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "No response from API",
+        }
+        console.warn(`[${req.jobId}] Pass ${passName}: no response`)
+        continue
+      }
+
+      const obj = parseJson(text)
+      if (!obj) {
+        passesStatus[passName] = {
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "JSON parse failed",
+        }
+        console.warn(`[${req.jobId}] Pass ${passName}: JSON parse failed — ${text.slice(0, 200)}`)
+        continue
+      }
+
+      const partial = obj as Partial<StartupProfile>
+      merged = mergePartial(merged, partial)
+
+      passesStatus[passName] = { status: "completed", completed_at: new Date().toISOString() }
+      await req.onPassComplete?.(passName, partial, { ...passesStatus })
+      await req.onProgress?.(PASS_PROGRESS[passName], `Done: ${passName}`)
+      console.log(`[${req.jobId}] Pass ${passName}: completed`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      passesStatus[passName] = {
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error: msg,
+      }
+      console.error(`[${req.jobId}] Pass ${passName} failed:`, msg)
+      // Continue to next pass rather than aborting entire research
+    }
   }
 
-  // ── Full 9-pass research ──────────────────────────────────────────
-  await req.onProgress?.(25, "Running deep research passes");
-
-  const DEADLINE = Date.now() + 320_000;
-  if (Date.now() > DEADLINE) throw new Error("Research timed out — please try again.");
-
-  const fullMessages: Array<{ role: string; content: unknown }> = [{
-    role: "user",
-    content: `Generate the complete StartupProfile JSON for this company using your training knowledge:\n\nCompany: ${req.company}\nCountry: ${req.country}\n\nBasic facts already collected:\n${quickJson ?? "none"}\n\nFill in all remaining fields including scores, raw_fields, youtube, linkedin, glassdoor, and financials. Return ONLY the JSON object — no markdown, no preamble.`
-  }];
-
-  let finalJson = await claudeCall(anthropicApiKey, SYSTEM_PROMPT, fullMessages, 3, 6000, false);
-
-  await req.onProgress?.(80, "Parsing research results");
-
-  if (!finalJson) {
-    throw new Error("Research failed: no JSON output from Claude after all passes");
-  }
-
+  // Scoring pass (no web search)
+  await req.onProgress?.(88, "Computing scores")
   try {
-    const profile = JSON.parse(finalJson) as StartupProfile;
-    // Ensure required fields
-    if (!profile.brand_name) profile.brand_name = req.company;
-    if (!profile.hq_country) profile.hq_country = req.country;
-    if (!profile.youtube) profile.youtube = [];
-    if (!profile.linkedin) profile.linkedin = [];
-    if (!profile.raw_fields) profile.raw_fields = [];
-    return profile;
+    const scoreData = await computeScores(apiKey, req.company, merged)
+    merged = mergePartial(merged, scoreData)
   } catch (e) {
-    throw new Error(`Failed to parse research JSON: ${e}. Raw output (first 500 chars): ${finalJson.slice(0, 500)}`);
+    console.warn(`[${req.jobId}] Scoring failed (non-fatal):`, e)
+  }
+
+  await req.onProgress?.(95, "Finalizing profile")
+
+  const stage = (merged.auto_stage || "seed") as string
+  const WEIGHTS: Record<string, number[]> = {
+    pre_seed:      [0.35, 0.05, 0.15, 0.20, 0.15, 0.10],
+    seed:          [0.25, 0.20, 0.20, 0.20, 0.10, 0.05],
+    series_a:      [0.15, 0.30, 0.20, 0.15, 0.10, 0.10],
+    series_b_plus: [0.10, 0.35, 0.20, 0.15, 0.10, 0.10],
+    growth:        [0.05, 0.40, 0.15, 0.15, 0.15, 0.10],
+  }
+  const [wf, wt, wc, wp, wm, wmo] = WEIGHTS[stage] || WEIGHTS.seed
+
+  return {
+    brand_name:            merged.brand_name         || req.company,
+    legal_name:            merged.legal_name,
+    cin:                   merged.cin,
+    website:               merged.website,
+    founded_date:          merged.founded_date,
+    hq_city:               merged.hq_city,
+    hq_country:            merged.hq_country         || req.country,
+    auto_stage:            merged.auto_stage          || "seed",
+    auto_industry:         merged.auto_industry       || "D2C",
+    auto_industry_sub:     merged.auto_industry_sub   || "",
+    auto_region:           merged.auto_region         || "metro_t1",
+    auto_biz_model:        merged.auto_biz_model      || "d2c",
+    auto_entity_pack:      merged.auto_entity_pack    || "base",
+    revenue_inr_cr:        merged.revenue_inr_cr,
+    revenue_fy:            merged.revenue_fy,
+    revenue_yoy_pct:       merged.revenue_yoy_pct,
+    net_profit_inr_cr:     merged.net_profit_inr_cr,
+    total_raised_usd_m:    merged.total_raised_usd_m,
+    last_round_type:       merged.last_round_type,
+    last_round_date:       merged.last_round_date,
+    last_round_size_inr_cr:merged.last_round_size_inr_cr,
+    team_size:             merged.team_size,
+    client_count:          merged.client_count,
+    is_profitable:         merged.is_profitable,
+    glassdoor_rating:      merged.glassdoor_rating,
+    glassdoor_reviews:     merged.glassdoor_reviews,
+    glassdoor_recommend:   merged.glassdoor_recommend,
+    glassdoor_wlb:         merged.glassdoor_wlb,
+    glassdoor_culture:     merged.glassdoor_culture,
+    glassdoor_themes:      merged.glassdoor_themes,
+    scores: merged.scores || {
+      stage,
+      dim_founder: 25, dim_traction: 25, dim_capital: 20,
+      dim_product: 30, dim_market: 50, dim_momentum: 15,
+      w_founder: wf, w_traction: wt, w_capital: wc,
+      w_product: wp, w_market: wm, w_momentum: wmo,
+      composite_score: 28, fields_applicable: 10, fields_collected: 4,
+      fields_unknown: 6, fields_not_applicable: 0, data_quality_pct: 40,
+    },
+    raw_fields: merged.raw_fields  || [],
+    youtube:    merged.youtube     || [],
+    linkedin:   merged.linkedin    || [],
   }
 }

@@ -28,6 +28,7 @@ export interface ResearchRequest {
     partial: Partial<StartupProfile>,
     passesStatus: PassesStatus
   ) => Promise<void>
+  onPassStatusUpdate?: (passesStatus: PassesStatus) => Promise<void>
   existingPassesStatus?: PassesStatus
 }
 
@@ -181,10 +182,11 @@ Also capture in raw_fields: investor_1_name, investor_1_tier (tier1/tier2/angel/
   },
 
   products: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
-{"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
-Capture: product_count (number), product_1_name, product_1_description, has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/reason), patent_count (number or 0).`,
-    user: (co) => `Search: "${co} products features API technology platform 2025" — return products raw_fields JSON.`,
+    system: `Startup research analyst. Do exactly 1 web search. You MUST return a JSON object regardless of search results.
+Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
+Capture these field_names: product_count, product_1_name, product_1_description, has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/no with reason), patent_count.
+If you cannot find information for a field, set raw_value to "unknown". Always return at least one raw_field entry.`,
+    user: (co) => `Search: "${co} products features API technology platform" — return products raw_fields JSON. Even if search results are sparse, return your best understanding.`,
     maxTokens: 1500,
   },
 
@@ -241,7 +243,8 @@ function mergePartial(
     if (v === null || v === undefined) continue
     if (k === "youtube" || k === "linkedin" || k === "raw_fields") {
       const existing = ((result as Record<string, unknown>)[k] as unknown[]) || []
-      ;(result as Record<string, unknown>)[k] = [...existing, ...(v as unknown[])]
+      const arr = Array.isArray(v) ? v : []
+      ;(result as Record<string, unknown>)[k] = [...existing, ...arr]
     } else {
       ;(result as Record<string, unknown>)[k] = v
     }
@@ -270,9 +273,9 @@ async function claudeCall(
     bodyBase.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: maxSearches }]
   }
 
-  const timeoutMs = maxSearches > 0 ? 50_000 : 30_000
+  const timeoutMs = maxSearches > 0 ? 70_000 : 35_000
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), timeoutMs)
     let res: Response
@@ -291,6 +294,14 @@ async function claudeCall(
       throw new Error(`API call failed: ${e}`)
     } finally {
       clearTimeout(timer)
+    }
+
+    // Retry after back-off on rate limit
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get("retry-after") || "15", 10)
+      console.warn(`Rate limited — waiting ${retryAfter}s before retry`)
+      await new Promise(r => setTimeout(r, retryAfter * 1000))
+      continue
     }
 
     if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`)
@@ -318,36 +329,93 @@ async function claudeCall(
   return null
 }
 
-// ── Scoring pass (no web search) ─────────────────────────────────
+// ── Programmatic scoring (no API call — runs in <1ms) ────────────
 
-async function computeScores(
-  apiKey: string,
-  company: string,
-  merged: Partial<StartupProfile>
-): Promise<Partial<StartupProfile>> {
-  const system = `Startup scoring analyst. Compute scores based on collected data. Return ONLY valid JSON.
-Stage weights → pre_seed: f=0.35,t=0.05,c=0.15,p=0.20,m=0.15,mo=0.10 | seed: f=0.25,t=0.20,c=0.20,p=0.20,m=0.10,mo=0.05 | series_a: f=0.15,t=0.30,c=0.20,p=0.15,m=0.10,mo=0.10 | series_b_plus: f=0.10,t=0.35,c=0.20,p=0.15,m=0.10,mo=0.10 | growth: f=0.05,t=0.40,c=0.15,p=0.15,m=0.15,mo=0.10
-dim_founder(0-100): IIT/IIM+20, prior_startup+20, prior_exit+20, domain≥5yr+20, tier1_advisor+10, network+10
-dim_traction(0-100): no_rev=0,pilots=20,<1Cr=40,1-10Cr=60,10-50Cr=75,50Cr+=90; cash_flow_positive+10
-dim_capital(0-100): tier1_VC(Sequoia/Accel/Matrix/Elevation)=90+, tier2=70-85, angels=30-50, no_funding=10
-dim_product(0-100): live+30, technical_moat+30, multi_products+20, patents+10, public_demo+10
-dim_market(0-100): TAM>$1Bn+30, reg_tailwind+20, low_competition+20, india_native+15, high_growth+15
-dim_momentum(0-100): global_win+30, national_win+20, tier1_incubator+20, major_press+15, tracxn_inclusion+15
-Unknown_field_penalty: -12% per unknown applicable field per dimension.
-composite = sum(dim * weight).`
+function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile> {
+  const stage = merged.auto_stage || "seed"
+  const WEIGHTS: Record<string, number[]> = {
+    pre_seed:      [0.35, 0.05, 0.15, 0.20, 0.15, 0.10],
+    seed:          [0.25, 0.20, 0.20, 0.20, 0.10, 0.05],
+    series_a:      [0.15, 0.30, 0.20, 0.15, 0.10, 0.10],
+    series_b_plus: [0.10, 0.35, 0.20, 0.15, 0.10, 0.10],
+    growth:        [0.05, 0.40, 0.15, 0.15, 0.15, 0.10],
+  }
+  const [wf, wt, wc, wp, wm, wmo] = WEIGHTS[stage] || WEIGHTS.seed
 
-  const userMsg = `Company: ${company}
-Stage: ${merged.auto_stage || "seed"}
-Collected data:
-${JSON.stringify(merged, null, 2)}
+  // Build a quick lookup from raw_fields
+  const fm: Record<string, string> = {}
+  for (const f of (merged.raw_fields || [])) {
+    if (f.raw_value && f.raw_value !== "unknown") fm[f.field_name] = f.raw_value.toLowerCase()
+  }
 
-Return ONLY:
-{"scores":{"stage":"","dim_founder":0,"dim_traction":0,"dim_capital":0,"dim_product":0,"dim_market":0,"dim_momentum":0,"w_founder":0,"w_traction":0,"w_capital":0,"w_product":0,"w_market":0,"w_momentum":0,"composite_score":0,"fields_applicable":0,"fields_collected":0,"fields_unknown":0,"fields_not_applicable":0,"data_quality_pct":0}}`
+  // dim_founder (0-100)
+  let dimFounder = 20
+  const edu = fm["founder_1_education"] || ""
+  if (edu.includes("iit") || edu.includes("iim") || edu.includes("tier1") || edu.includes("isb")) dimFounder += 20
+  if (fm["founder_1_prior_startup"] === "yes") dimFounder += 20
+  if (fm["founder_1_prior_exit"] === "yes") dimFounder += 20
+  if (parseInt(fm["founder_1_domain_years"] || "0") >= 5) dimFounder += 20
+  if (parseInt(fm["advisor_count"] || "0") >= 2) dimFounder += 10
 
-  const text = await claudeCall(apiKey, system, userMsg, 1500, 0)
-  if (!text) return {}
-  const obj = parseJson(text)
-  return (obj as Partial<StartupProfile>) || {}
+  // dim_traction (0-100)
+  let dimTraction = 0
+  const rev = merged.revenue_inr_cr
+  if (rev && rev >= 50) dimTraction = 90
+  else if (rev && rev >= 10) dimTraction = 75
+  else if (rev && rev >= 1) dimTraction = 60
+  else if (rev && rev > 0) dimTraction = 40
+  else if (merged.client_count && merged.client_count > 100) dimTraction = 20
+  if (merged.is_profitable) dimTraction = Math.min(100, dimTraction + 10)
+
+  // dim_capital (0-100)
+  let dimCapital = 10
+  const tier = fm["investor_1_tier"] || ""
+  if (tier === "tier1") dimCapital = 90
+  else if (tier === "tier2") dimCapital = 75
+  else if (tier === "angel") dimCapital = 45
+  else if (tier === "govt") dimCapital = 35
+  else if (merged.total_raised_usd_m && merged.total_raised_usd_m >= 10) dimCapital = 55
+  else if (merged.total_raised_usd_m && merged.total_raised_usd_m > 0) dimCapital = 35
+
+  // dim_product (0-100)
+  let dimProduct = 30
+  if ((fm["has_technical_moat"] || "").startsWith("yes")) dimProduct += 30
+  if (fm["has_api"] === "yes") dimProduct += 10
+  if (fm["has_mobile_app"] === "yes") dimProduct += 10
+  if (parseInt(fm["patent_count"] || "0") > 0) dimProduct += 10
+  if (parseInt(fm["product_count"] || "0") > 1) dimProduct += 10
+
+  // dim_market (0-100) — default moderate; most Indian SaaS/BFSI/D2C have large TAMs
+  const dimMarket = 55
+
+  // dim_momentum (0-100)
+  let dimMomentum = 15
+  if (fm["award_1"]) dimMomentum += 20
+  if (fm["partnership_1"]) dimMomentum += 15
+  if (fm["latest_news_headline"]) dimMomentum += 10
+
+  const composite = Math.round(
+    dimFounder * wf + dimTraction * wt + dimCapital * wc +
+    dimProduct * wp + dimMarket * wm + dimMomentum * wmo
+  )
+
+  const fieldsCollected = Object.keys(fm).length +
+    (rev ? 1 : 0) + (merged.total_raised_usd_m ? 1 : 0) +
+    (merged.glassdoor_rating ? 1 : 0) + (merged.team_size ? 1 : 0)
+  const fieldsApplicable = 20
+  const fieldsUnknown = Math.max(0, fieldsApplicable - fieldsCollected)
+  const dq = Math.round(Math.min(95, (fieldsCollected / fieldsApplicable) * 100))
+
+  return {
+    scores: {
+      stage, dim_founder: dimFounder, dim_traction: dimTraction, dim_capital: dimCapital,
+      dim_product: dimProduct, dim_market: dimMarket, dim_momentum: dimMomentum,
+      w_founder: wf, w_traction: wt, w_capital: wc, w_product: wp, w_market: wm, w_momentum: wmo,
+      composite_score: composite,
+      fields_applicable: fieldsApplicable, fields_collected: fieldsCollected,
+      fields_unknown: fieldsUnknown, fields_not_applicable: 0, data_quality_pct: dq,
+    }
+  }
 }
 
 // ── Mock ──────────────────────────────────────────────────────────
@@ -442,75 +510,73 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
 
   await req.onProgress?.(5, "Starting research")
 
-  for (const passName of PASS_NAMES) {
-    if (passesStatus[passName]?.status === "completed") {
-      console.log(`[${req.jobId}] Pass ${passName}: already completed, skipping`)
-      continue
+  // Run passes in parallel batches — each batch fires simultaneously,
+  // completing when the slowest pass in that batch finishes (~20s per batch).
+  const PASS_BATCHES: PassName[][] = [
+    ["overview", "founders", "glassdoor"],
+    ["funding", "products", "regulatory"],
+    ["signals", "youtube", "linkedin"],
+  ]
+
+  for (const batch of PASS_BATCHES) {
+    // Only run passes that are pending and not disabled
+    const toRun = batch.filter(p =>
+      passesStatus[p]?.status !== "completed" && !disabledPasses.has(p)
+    )
+    // Mark disabled ones
+    for (const p of batch) {
+      if (disabledPasses.has(p) && passesStatus[p]?.status !== "completed") {
+        passesStatus[p] = { status: "skipped", completed_at: new Date().toISOString() }
+      }
     }
+    if (toRun.length === 0) continue
 
-    if (disabledPasses.has(passName)) {
-      passesStatus[passName] = { status: "skipped", completed_at: new Date().toISOString() }
-      console.log(`[${req.jobId}] Pass ${passName}: disabled`)
-      continue
-    }
+    console.log(`[${req.jobId}] Batch starting: ${toRun.join(", ")}`)
+    await req.onProgress?.(PASS_PROGRESS[toRun[0]] - 3, `Running: ${toRun.join(", ")}`)
 
-    await req.onProgress?.(PASS_PROGRESS[passName] - 3, `Running: ${passName}`)
-    console.log(`[${req.jobId}] Pass ${passName}: starting`)
-
-    try {
-      const spec = PASS_SPECS[passName]
-      const text = await claudeCall(
-        apiKey,
-        spec.system,
-        spec.user(req.company, req.country),
-        spec.maxTokens,
-        1
-      )
-
-      if (!text) {
-        passesStatus[passName] = {
-          status: "failed",
-          completed_at: new Date().toISOString(),
-          error: "No response from API",
+    // Fire all passes in the batch in parallel
+    const results = await Promise.all(toRun.map(async (passName) => {
+      try {
+        const spec = PASS_SPECS[passName]
+        const text = await claudeCall(
+          apiKey, spec.system, spec.user(req.company, req.country), spec.maxTokens, 1
+        )
+        if (text === null || text.trim() === "") {
+          return { passName, partial: null as Partial<StartupProfile> | null, error: "No response from API" }
         }
-        console.warn(`[${req.jobId}] Pass ${passName}: no response`)
-        continue
-      }
-
-      const obj = parseJson(text)
-      if (!obj) {
-        passesStatus[passName] = {
-          status: "failed",
-          completed_at: new Date().toISOString(),
-          error: "JSON parse failed",
+        const obj = parseJson(text)
+        if (!obj) {
+          return { passName, partial: null, error: `JSON parse failed: ${text.slice(0, 100)}` }
         }
-        console.warn(`[${req.jobId}] Pass ${passName}: JSON parse failed — ${text.slice(0, 200)}`)
-        continue
+        return { passName, partial: obj as Partial<StartupProfile>, error: null }
+      } catch (e) {
+        return { passName, partial: null, error: e instanceof Error ? e.message : String(e) }
       }
+    }))
 
-      const partial = obj as Partial<StartupProfile>
-      merged = mergePartial(merged, partial)
-
-      passesStatus[passName] = { status: "completed", completed_at: new Date().toISOString() }
-      await req.onPassComplete?.(passName, partial, { ...passesStatus })
-      await req.onProgress?.(PASS_PROGRESS[passName], `Done: ${passName}`)
-      console.log(`[${req.jobId}] Pass ${passName}: completed`)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      passesStatus[passName] = {
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        error: msg,
+    // Process results sequentially so merges and DB writes don't interleave.
+    // overview is always first in its batch, ensuring startupId is set before
+    // founders/glassdoor callbacks run.
+    for (const { passName, partial, error } of results) {
+      if (error || !partial) {
+        passesStatus[passName] = { status: "failed", completed_at: new Date().toISOString(), error: error || "Unknown" }
+        console.warn(`[${req.jobId}] Pass ${passName} failed: ${error}`)
+        await req.onPassStatusUpdate?.({ ...passesStatus })
+      } else {
+        merged = mergePartial(merged, partial)
+        passesStatus[passName] = { status: "completed", completed_at: new Date().toISOString() }
+        await req.onPassComplete?.(passName, partial, { ...passesStatus })
+        console.log(`[${req.jobId}] Pass ${passName}: completed`)
       }
-      console.error(`[${req.jobId}] Pass ${passName} failed:`, msg)
-      // Continue to next pass rather than aborting entire research
     }
+
+    await req.onProgress?.(PASS_PROGRESS[toRun[toRun.length - 1]], `Batch done`)
   }
 
-  // Scoring pass (no web search)
+  // Programmatic scoring — instant, no API call
   await req.onProgress?.(88, "Computing scores")
   try {
-    const scoreData = await computeScores(apiKey, req.company, merged)
+    const scoreData = computeScores(merged)
     merged = mergePartial(merged, scoreData)
   } catch (e) {
     console.warn(`[${req.jobId}] Scoring failed (non-fatal):`, e)

@@ -123,6 +123,11 @@ async function runResearch(jobId: string, company: string, country: string): Pro
         await updateJobProgress(supabase, jobId, pct, "running", startupId);
       },
 
+      onPassStatusUpdate: async (updatedStatus) => {
+        passesStatus = updatedStatus;
+        await updatePassStatus(supabase, jobId, updatedStatus);
+      },
+
       onPassComplete: async (passName, partial, updatedStatus) => {
         passesStatus = updatedStatus;
 
@@ -135,6 +140,10 @@ async function runResearch(jobId: string, company: string, country: string): Pro
               jobId
             );
             console.log(`[${jobId}] Startup created: ${startupId}`);
+            // Also write any signals that came with the first pass (e.g. mock mode)
+            if (partial.raw_fields?.length)  await appendRawFields(supabase, startupId, partial.raw_fields);
+            if (partial.youtube?.length)     await appendYouTubeSignals(supabase, startupId, partial.youtube);
+            if (partial.linkedin?.length)    await appendLinkedInSignals(supabase, startupId, partial.linkedin);
             await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
           } else if (startupId) {
             // Subsequent passes — update in place and append signals

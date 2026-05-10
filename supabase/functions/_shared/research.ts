@@ -138,7 +138,7 @@ export interface StartupProfile {
 
 interface PassSpec {
   system: string
-  user: (co: string, country: string) => string
+  user: (co: string, country: string, ctx?: { industry?: string; stage?: string }) => string
   maxTokens: number
   maxSearches?: number  // defaults to 1
   model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
@@ -152,16 +152,24 @@ auto_stage: pre_seed|seed|series_a|series_b_plus|growth
 auto_industry: BFSI|AI_Infra|D2C|Health|Logistics|EdTech_HRTech
 auto_region: metro_t1(Mumbai/Delhi/Bengaluru)|metro_t2(Pune/Hyd/Chennai/Ahmedabad)|non_metro
 auto_biz_model: enterprise_saas|usage|d2c|nbfc|deeptech_ip
-auto_entity_pack: base OR base|saas OR base|d2c|consumer OR base|nbfc|lending`,
-    user: (co, country) => `Search: "${co} startup ${country} company overview founders profile" — return overview JSON for ${co}.`,
+auto_entity_pack: base OR base|saas OR base|d2c|consumer OR base|nbfc|lending
+IMPORTANT: Search specifically for the Indian company. If the name could refer to multiple companies, focus on the Indian startup.`,
+    user: (co, country) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} startup company overview founders profile" — return overview JSON for the Indian company named ${co}.`
+    },
     maxTokens: 1500,
   },
 
   founders: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
-Capture these field_names: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.`,
-    user: (co) => `Search: "${co} founders CEO CTO leadership background education LinkedIn" — return founders raw_fields JSON.`,
+Capture these field_names: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
+IMPORTANT: Search specifically for the Indian company founders. Ignore founders of same-named companies in other countries.`,
+    user: (co, country) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} founders CEO CTO leadership background education LinkedIn" — return founders raw_fields JSON for the Indian startup ${co}.`
+    },
     maxTokens: 2000,
   },
 
@@ -169,40 +177,66 @@ Capture these field_names: founder_1_name, founder_1_education (IIT/IIM/tier1/ot
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_themes":null}
 glassdoor_rating: float, glassdoor_reviews: int, glassdoor_recommend: int (% who recommend), glassdoor_themes: CSV string of 3-5 culture themes.
-Extract from SERP snippets only — do NOT visit Glassdoor directly.`,
-    user: (co) => `Search: "${co} Glassdoor rating employee reviews work culture 2024 2025" — return glassdoor JSON from snippets.`,
+Extract from SERP snippets only — do NOT visit Glassdoor directly.
+IMPORTANT: Only return data for the Indian company. Discard any results for same-named companies in other countries.`,
+    user: (co, country) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} Glassdoor rating employee reviews work culture 2024 2025" — return glassdoor JSON from snippets for the Indian company ${co}.`
+    },
     maxTokens: 800,
   },
 
   funding: {
-    system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history. Return ONLY valid JSON:
+    system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
+
+CRITICAL: You MUST populate raw_fields with actual investor and round data. An empty raw_fields array is WRONG.
+
+Return ONLY valid JSON in this exact structure:
 {
   "total_raised_usd_m": null,
   "last_round_type": null,
   "last_round_date": null,
   "last_round_size_inr_cr": null,
-  "raw_fields": []
+  "raw_fields": [
+    {"field_name":"round_count","field_pack":"funding","applicability":"applicable","raw_value":"4","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"lead_investor","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"investor_1_name","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"investor_1_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
+    {"field_name":"investor_2_name","field_pack":"funding","applicability":"applicable","raw_value":"Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_history","field_pack":"funding","applicability":"applicable","raw_value":"[{\"type\":\"Series B\",\"date\":\"2022-06\",\"amount_usd_m\":20,\"lead\":\"Accel\",\"investors\":[\"Accel\",\"Tiger Global\"]}]","data_type":"json","source_type":"web","source_url":null,"confidence":0.85}
+  ]
 }
-last_round_type: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
-Currency: ₹83 cr ≈ $1M. Always convert INR→USD. Never return null just because amount is in INR.
 
-Capture these in raw_fields (ALL must use field_pack="funding"):
-- round_count: total number of funding rounds (number as string)
-- round_history: JSON string of ALL rounds found, most recent first. Format each round as {"type":"Series B","date":"2021-06","amount_usd_m":15,"lead":"Accel","investors":["Accel","Tiger Global"]}
-- investor_1_name through investor_5_name: top 5 investors by prominence (strings)
-- investor_1_tier through investor_3_tier: tier1/tier2/angel/govt for top 3 investors
-- lead_investor: lead investor of the most recent round`,
-    user: (co) => `Search 1: "${co} funding history all rounds investors crunchbase tracxn inc42 total raised"\nSearch 2: "${co} Series A B C D investors lead investor amount 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON.`,
+Required raw_fields (ALL must have field_pack="funding"):
+- round_count: total rounds as a numeric string (e.g. "4")
+- lead_investor: lead investor of the most recent round
+- investor_1_name through investor_5_name: top investors by prominence
+- investor_1_tier through investor_3_tier: "tier1"|"tier2"|"angel"|"govt"
+- round_history: a JSON string array of all rounds, most recent first — each: {"type","date":"YYYY-MM","amount_usd_m","lead","investors":[...]}
+
+Currency rules: ₹83 Cr ≈ $1M. Convert INR→USD for total_raised_usd_m. Never return null just because amounts are in INR.
+last_round_type must be one of: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
+Set applicability="unknown" and raw_value=null only if the information is genuinely absent after searching.`,
+    user: (co, country, ctx) => {
+      const cname = country === "IN" ? "India" : country
+      const sector = ctx?.industry ? ` ${ctx.industry}` : ""
+      return `Search 1: "${co} ${cname}${sector} funding history all rounds investors crunchbase tracxn inc42 total raised"\nSearch 2: "${co} ${cname} Series A B C D investors lead investor amount 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
+    },
     maxTokens: 3000,
     maxSearches: 2,
   },
 
   products: {
     system: `Startup research analyst. Do exactly 1 web search. You MUST return a JSON object regardless of search results.
-Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
-Capture these field_names: product_count, product_1_name, product_1_description, has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/no with reason), patent_count.
-If you cannot find information for a field, set raw_value to "unknown". Always return at least one raw_field entry.`,
-    user: (co) => `Search: "${co} products features API technology platform" — return products raw_fields JSON. Even if search results are sparse, return your best understanding.`,
+Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"products","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
+Capture these field_names (field_pack must be "products" for all): product_count, product_1_name, product_1_description, product_1_type (B2B/B2C/B2B2C), has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/no — add brief reason), pricing_model, moat_type.
+If you cannot find information for a field, set applicability="unknown" and raw_value=null. Always return at least one raw_field entry.
+IMPORTANT: Search specifically for the Indian company's products. Discard results for same-named companies elsewhere.`,
+    user: (co, country, ctx) => {
+      const cname = country === "IN" ? "India" : country
+      const sector = ctx?.industry ? ` ${ctx.industry}` : ""
+      return `Search: "${co} ${cname}${sector} products features API technology platform" — return products raw_fields JSON for the Indian startup ${co}.`
+    },
     maxTokens: 1500,
     model: "claude-haiku-4-5-20251001",
   },
@@ -210,8 +244,11 @@ If you cannot find information for a field, set raw_value to "unknown". Always r
   regulatory: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"cin":null,"legal_name":null,"raw_fields":[]}
-CIN format: U12345AB2020PTC123456. Capture in raw_fields: incorporation_date, registered_state, mca_status (active/struck_off), authorized_capital_cr, paid_up_capital_cr.`,
-    user: (co) => `Search: "${co} MCA CIN India company registration incorporation" — return regulatory JSON.`,
+CIN format: U12345AB2020PTC123456. Capture in raw_fields (field_pack="regulatory" for all): incorporation_date, registered_state, mca_status (active/struck_off), authorized_capital_cr, paid_up_capital_cr.`,
+    user: (co, country) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} MCA CIN India company registration incorporation" — return regulatory JSON for the Indian company ${co}.`
+    },
     maxTokens: 1000,
     model: "claude-haiku-4-5-20251001",
   },
@@ -219,8 +256,13 @@ CIN format: U12345AB2020PTC123456. Capture in raw_fields: incorporation_date, re
   signals: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"revenue_inr_cr":null,"revenue_fy":null,"revenue_yoy_pct":null,"net_profit_inr_cr":null,"is_profitable":null,"client_count":null,"raw_fields":[]}
-Also capture in raw_fields: latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market.`,
-    user: (co) => `Search: "${co} revenue financials ARR growth news 2024 2025 clients" — return signals JSON.`,
+Also capture in raw_fields (field_pack="signals" for all): latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market.
+IMPORTANT: Only report financials and news for the Indian company. Discard data from same-named companies elsewhere.`,
+    user: (co, country, ctx) => {
+      const cname = country === "IN" ? "India" : country
+      const sector = ctx?.industry ? ` ${ctx.industry}` : ""
+      return `Search: "${co} ${cname}${sector} revenue financials ARR growth news 2024 2025 clients" — return signals JSON for the Indian company ${co}.`
+    },
     maxTokens: 1500,
     model: "claude-haiku-4-5-20251001",
   },
@@ -229,18 +271,24 @@ Also capture in raw_fields: latest_news_headline, latest_news_date, award_1 (nam
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"youtube":[{"video_title":"","video_url":null,"published_date":null,"video_type":"","channel_name":null,"is_own_channel":false,"key_quote":null,"confidence":0.9}]}
 video_type: founder_on_camera|podcast_feature|product_demo|culture_content|news_coverage
-Capture up to 8 videos from YouTube search results.`,
-    user: (co) => `Search: "${co} site:youtube.com" — return youtube signals JSON.`,
+Capture up to 8 videos. Only include videos about the Indian company.`,
+    user: (co, country) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} site:youtube.com" — return youtube signals JSON for the Indian company ${co}.`
+    },
     maxTokens: 2000,
     model: "claude-haiku-4-5-20251001",
   },
 
   linkedin: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
-{"linkedin":[{"pass":9,"author_name":null,"author_org":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
+{"linkedin":[{"pass":9,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: founder_traction_claim|investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
-Capture up to 6 posts from LinkedIn SERP snippets.`,
-    user: (co) => `Search: "${co} LinkedIn announcement funding investment partnership hiring 2024 2025" — return linkedin signals JSON from SERP snippets.`,
+Capture up to 6 posts from LinkedIn SERP snippets. Only include posts about the Indian company.`,
+    user: (co, country, ctx) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} LinkedIn announcement funding investment partnership hiring 2024 2025" — return linkedin signals JSON for the Indian company ${co}.`
+    },
     maxTokens: 2000,
     model: "claude-haiku-4-5-20251001",
   },
@@ -591,8 +639,10 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
       try {
         const spec = PASS_SPECS[passName]
         const budgetMs = Math.max(Math.min(50_000, deadline - Date.now() - 8_000), 5_000)
+        // Pass merged context so batch-2 queries can use industry/stage from batch-1 overview
+        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage }
         const text = await raceTimeout(
-          claudeCall(apiKey, spec.system, spec.user(req.company, req.country), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
+          claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
           budgetMs
         )
         if (text === null || text.trim() === "") {

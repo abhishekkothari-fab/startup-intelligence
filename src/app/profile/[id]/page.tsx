@@ -10,6 +10,14 @@ function str(v: unknown): string {
 function num(v: unknown): number {
   return Number(v) || 0
 }
+function rawVal(raw: Record<string, unknown>[], name: string): string {
+  const f = raw.find(r => r.field_name === name)
+  if (!f || f.applicability === "not_applicable") return ""
+  return str(f.raw_value)
+}
+function rawByPack(raw: Record<string, unknown>[], pack: string) {
+  return raw.filter(r => r.field_pack === pack && r.applicability !== "not_applicable" && r.raw_value)
+}
 
 export default function ProfilePage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ job_id?: string }> }) {
   const { id } = use(params)
@@ -87,13 +95,16 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
         </nav>
 
         <main style={{ flex: 1, padding: "2.5rem", overflow: "auto" }}>
-          {activeTab === "overview"  && <OverviewTab s={s} sc={sc} score={score} />}
-          {activeTab === "score"     && <ScoreTab sc={sc} />}
-          {activeTab === "youtube"   && <YouTubeTab videos={profile.youtube} />}
-          {activeTab === "linkedin"  && <LinkedInTab signals={profile.linkedin} />}
-          {activeTab === "glassdoor" && <GlassdoorTab s={s} />}
-          {activeTab === "funding"   && <FundingTab s={s} />}
-          {activeTab === "raw"       && <RawTab summary={profile.raw_summary} />}
+          {activeTab === "overview"    && <OverviewTab s={s} sc={sc} score={score} />}
+          {activeTab === "score"       && <ScoreTab sc={sc} />}
+          {activeTab === "founders"    && <FoundersTab raw={profile.raw_summary} />}
+          {activeTab === "funding"     && <FundingTab s={s} raw={profile.raw_summary} />}
+          {activeTab === "products"    && <ProductsTab raw={profile.raw_summary} />}
+          {activeTab === "youtube"     && <YouTubeTab videos={profile.youtube} />}
+          {activeTab === "linkedin"    && <LinkedInTab signals={profile.linkedin} />}
+          {activeTab === "glassdoor"   && <GlassdoorTab s={s} />}
+          {activeTab === "regulatory"  && <RegulatoryTab raw={profile.raw_summary} />}
+          {activeTab === "raw"         && <RawTab summary={profile.raw_summary} />}
         </main>
       </div>
     </div>
@@ -263,7 +274,7 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
   if (!rating) return <Empty>No Glassdoor data collected.</Empty>
   return (
     <div>
-      <SecHeader title="Glassdoor Culture Signal" tag="Pass 2" />
+      <SecHeader title="Glassdoor Culture Signal" tag="Pass 3" />
       <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1.5rem", display:"grid", gridTemplateColumns:"180px 1fr", gap:"1.5rem", alignItems:"start" }}>
         <div style={{ textAlign:"center" }}>
           <div style={{ fontSize:52, fontWeight:700, color:"var(--text-h)", lineHeight:1 }}>{rating}</div>
@@ -290,16 +301,69 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
   )
 }
 
-function FundingTab({ s }: { s: Record<string, unknown> }) {
+function FundingTab({ s, raw }: { s: Record<string, unknown>; raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const roundCount  = rv("round_count")
+  const leadInv     = rv("lead_investor")
+  const roundHistRaw = rv("round_history")
+  const investors = [1,2,3,4,5].map(n => ({ name: rv(`investor_${n}_name`), tier: rv(`investor_${n}_tier`) })).filter(i => i.name)
+
+  let roundHistory: { type?: string; date?: string; amount_usd_m?: number; lead?: string; investors?: string[] }[] = []
+  if (roundHistRaw) {
+    try { roundHistory = JSON.parse(roundHistRaw) } catch { /* invalid json */ }
+  }
+
   return (
     <div>
       <SecHeader title="Funding" tag="Capital" />
       <StatGrid>
-        <StatCard label="Total Raised"    value={s.total_raised_usd_m     ? `$${str(s.total_raised_usd_m)}M`       : "—"} sub="" />
+        <StatCard label="Total Raised"    value={s.total_raised_usd_m     ? `$${str(s.total_raised_usd_m)}M`       : "—"} sub={roundCount ? `${roundCount} rounds` : ""} />
         <StatCard label="Last Round"      value={str(s.last_round_type) || "—"} sub={str(s.last_round_date)} />
         <StatCard label="Last Round Size" value={s.last_round_size_inr_cr ? `₹${str(s.last_round_size_inr_cr)} Cr` : "—"} sub="" />
-        <StatCard label="Stage"           value={str(s.stage).replace(/_/g," ") || "—"} sub="" />
+        <StatCard label="Stage"           value={str(s.stage).replace(/_/g," ") || "—"} sub={leadInv ? `Lead: ${leadInv}` : ""} />
       </StatGrid>
+
+      {investors.length > 0 && (
+        <>
+          <SecHeader title="Investors" tag="Backers" />
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:8, marginBottom:"1.5rem" }}>
+            {investors.map((inv, i) => (
+              <div key={i} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:8, padding:"0.875rem 1rem" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--text-h)" }}>{inv.name}</div>
+                {inv.tier && <div style={{ marginTop:4 }}><span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"1px 6px", borderRadius:3, background: inv.tier==="tier1"?"var(--blue-lt)":inv.tier==="tier2"?"var(--green-lt)":"var(--bg-soft)", color: inv.tier==="tier1"?"var(--navy)":inv.tier==="tier2"?"var(--green)":"var(--slate)", border:"1px solid var(--border)" }}>{inv.tier}</span></div>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {roundHistory.length > 0 && (
+        <>
+          <SecHeader title="Round History" tag="All Rounds" />
+          <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)" }}>
+                  {["Round","Date","Amount (USD)","Lead Investor","All Investors"].map(h => (
+                    <th key={h} style={{ textAlign:"left", fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", fontWeight:500, padding:"7px 12px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {roundHistory.map((r, i) => (
+                  <tr key={i} style={{ borderBottom:"1px solid var(--border)", background: i%2===0?"#fff":"var(--bg-soft)" }}>
+                    <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, fontWeight:600, color:"var(--navy)" }}>{r.type || "—"}</td>
+                    <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-s)" }}>{r.date || "—"}</td>
+                    <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)" }}>{r.amount_usd_m ? `$${r.amount_usd_m}M` : "—"}</td>
+                    <td style={{ padding:"8px 12px", fontSize:12, color:"var(--text-m)" }}>{r.lead || "—"}</td>
+                    <td style={{ padding:"8px 12px", fontSize:11, color:"var(--text-s)" }}>{r.investors?.join(", ") || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -321,26 +385,195 @@ function RawTab({ summary }: { summary: Record<string, unknown>[] }) {
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
           <thead>
             <tr style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)" }}>
-              {["Field","Pack","Applicability","Source","Confidence"].map(h=>(
+              {["Field","Pack","Value","Applicability","Source","Conf"].map(h=>(
                 <th key={h} style={{ textAlign:"left", fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", fontWeight:500, padding:"7px 12px" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {summary.map((f,i)=>(
-              <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
-                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)" }}>{str(f.field_name)}</td>
-                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)" }}>{str(f.field_pack)}</td>
+              <tr key={i} style={{ borderBottom:"1px solid var(--border)", background: i%2===0?"#fff":"var(--bg-soft)" }}>
+                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)", whiteSpace:"nowrap" }}>{str(f.field_name)}</td>
+                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)", whiteSpace:"nowrap" }}>{str(f.field_pack)}</td>
+                <td style={{ padding:"7px 12px", fontSize:12, color:"var(--text-m)", maxWidth:280 }} title={str(f.raw_value)}>
+                  {str(f.raw_value) ? (str(f.raw_value).length > 70 ? str(f.raw_value).slice(0,70)+"…" : str(f.raw_value)) : <span style={{ color:"var(--text-xs)", fontStyle:"italic" }}>—</span>}
+                </td>
                 <td style={{ padding:"7px 12px" }}>
                   <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"1px 6px", borderRadius:3, background:f.applicability==="applicable"?"var(--green-lt)":f.applicability==="unknown"?"var(--amber-lt)":"var(--red-lt)", color:f.applicability==="applicable"?"var(--green)":f.applicability==="unknown"?"var(--amber)":"var(--red)" }}>{str(f.applicability)}</span>
                 </td>
-                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-s)" }}>{str(f.source_type)}</td>
+                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-s)", whiteSpace:"nowrap" }}>{str(f.source_type)}</td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)" }}>{f.confidence?str(f.confidence):"—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+function KV({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:8, padding:"7px 0", borderBottom:"1px solid var(--border)" }}>
+      <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", paddingTop:1 }}>{k}</span>
+      <span style={{ fontSize:13, color:"var(--text-m)" }}>{v}</span>
+    </div>
+  )
+}
+
+function FoundersTab({ raw }: { raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const founders = [1,2,3].map(n => ({
+    name:         rv(`founder_${n}_name`),
+    role:         rv(`founder_${n}_role`),
+    education:    rv(`founder_${n}_education`),
+    domainYears:  rv(`founder_${n}_domain_years`),
+    priorStartup: rv(`founder_${n}_prior_startup`),
+    priorExit:    rv(`founder_${n}_prior_exit`),
+    isIitIim:     rv(`founder_${n}_is_iit_iim`),
+    linkedinUrl:  rv(`founder_${n}_linkedin_url`),
+  })).filter(f => f.name)
+  const advisorCount    = rv("advisor_count")
+  const notableAdvisors = rv("notable_advisors")
+  const teamComposition = rv("team_composition")
+  if (!founders.length) return <Empty>No founder data collected yet. Check Raw Fields tab for any partial data.</Empty>
+  return (
+    <div>
+      <SecHeader title="Founding Team" tag="Founders" />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16, marginBottom:"1.5rem" }}>
+        {founders.map((f, i) => (
+          <div key={i} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:10, padding:"1.25rem" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"1rem" }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:700, color:"var(--text-h)" }}>{f.name}</div>
+                {f.role && <div style={{ fontFamily:"monospace", fontSize:11, color:"var(--text-s)", marginTop:2 }}>{f.role}</div>}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+                {f.isIitIim && f.isIitIim !== "false" && f.isIitIim !== "no" && <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:4, background:"var(--blue-lt)", color:"var(--navy)", border:"1px solid var(--blue-md)" }}>IIT/IIM</span>}
+                {f.linkedinUrl && <a href={f.linkedinUrl} target="_blank" rel="noreferrer" style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:4, background:"var(--bg-soft)", color:"var(--slate)", border:"1px solid var(--border)", textDecoration:"none" }}>LinkedIn</a>}
+              </div>
+            </div>
+            <div>
+              {f.education    && <KV k="Education"       v={f.education} />}
+              {f.domainYears  && <KV k="Domain Exp"      v={`${f.domainYears} years`} />}
+              {f.priorStartup && <KV k="Prior Startup"   v={f.priorStartup} />}
+              {f.priorExit    && <KV k="Prior Exit"      v={f.priorExit} />}
+            </div>
+          </div>
+        ))}
+      </div>
+      {(advisorCount || notableAdvisors || teamComposition) && (
+        <>
+          <SecHeader title="Team Context" tag="Advisory" />
+          <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff" }}>
+            {advisorCount    && <KV k="Advisor Count"    v={advisorCount} />}
+            {notableAdvisors && <KV k="Notable Advisors" v={notableAdvisors} />}
+            {teamComposition && <KV k="Team Composition" v={teamComposition} />}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ProductsTab({ raw }: { raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const products = [1,2,3,4].map(n => ({
+    name:        rv(`product_${n}_name`),
+    type:        rv(`product_${n}_type`),
+    description: rv(`product_${n}_description`),
+    maturity:    rv(`product_${n}_maturity`),
+    users:       rv(`product_${n}_users`),
+  })).filter(p => p.name)
+  const moatType     = rv("moat_type")
+  const moatDesc     = rv("moat_description")
+  const techStack    = rv("tech_stack_type")
+  const apiAvailable = rv("api_available")
+  const pricingModel = rv("pricing_model")
+  const productCount = rv("product_count")
+  const productPacks = rawByPack(raw, "products")
+  if (!products.length && !productPacks.length) return <Empty>No product data collected yet. Check Raw Fields tab.</Empty>
+  return (
+    <div>
+      <SecHeader title="Products & Platform" tag="Products" />
+      {productCount && <div style={{ marginBottom:"1rem", fontFamily:"monospace", fontSize:12, color:"var(--text-s)" }}>{productCount} product(s) catalogued</div>}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16, marginBottom:"1.5rem" }}>
+        {products.map((p, i) => (
+          <div key={i} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:10, padding:"1.25rem" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"0.75rem" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"var(--text-h)" }}>{p.name}</div>
+              {p.type && <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:4, background:"var(--blue-lt)", color:"var(--navy)", border:"1px solid var(--blue-md)" }}>{p.type}</span>}
+            </div>
+            {p.description && <p style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.6, marginBottom:"0.75rem" }}>{p.description}</p>}
+            {p.maturity && <KV k="Maturity" v={p.maturity} />}
+            {p.users    && <KV k="Users"    v={p.users} />}
+          </div>
+        ))}
+      </div>
+      {(moatType || moatDesc || techStack || apiAvailable || pricingModel) && (
+        <>
+          <SecHeader title="Platform Attributes" tag="Tech" />
+          <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff" }}>
+            {moatType     && <KV k="Moat Type"     v={moatType} />}
+            {moatDesc     && <KV k="Moat"          v={moatDesc} />}
+            {techStack    && <KV k="Tech Stack"    v={techStack} />}
+            {apiAvailable && <KV k="API Available" v={apiAvailable} />}
+            {pricingModel && <KV k="Pricing Model" v={pricingModel} />}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function RegulatoryTab({ raw }: { raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const fields = rawByPack(raw, "regulatory")
+  if (!fields.length) return <Empty>No regulatory data collected yet.</Empty>
+  const licenses = [1,2,3,4].map(n => ({
+    name:      rv(`license_${n}_name`),
+    status:    rv(`license_${n}_status`),
+    regulator: rv(`license_${n}_regulator`),
+    since:     rv(`license_${n}_since`),
+  })).filter(l => l.name)
+  const complianceFlags = rv("compliance_flags")
+  const keyRisks        = rv("key_regulatory_risks")
+  const otherFields     = fields.filter(f => !str(f.field_name).startsWith("license_") && f.field_name !== "compliance_flags" && f.field_name !== "key_regulatory_risks")
+  return (
+    <div>
+      <SecHeader title="Regulatory & Compliance" tag="Regulatory" />
+      {licenses.length > 0 && (
+        <>
+          <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)" }}>
+                  {["License","Status","Regulator","Since"].map(h=>(
+                    <th key={h} style={{ textAlign:"left", fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", fontWeight:500, padding:"7px 12px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {licenses.map((l, i) => (
+                  <tr key={i} style={{ borderBottom:"1px solid var(--border)", background: i%2===0?"#fff":"var(--bg-soft)" }}>
+                    <td style={{ padding:"8px 12px", fontWeight:500, color:"var(--text-h)" }}>{l.name}</td>
+                    <td style={{ padding:"8px 12px" }}><span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:3, background:l.status==="active"?"var(--green-lt)":"var(--amber-lt)", color:l.status==="active"?"var(--green)":"var(--amber)", border:"1px solid var(--border)" }}>{l.status || "unknown"}</span></td>
+                    <td style={{ padding:"8px 12px", color:"var(--text-s)" }}>{l.regulator || "—"}</td>
+                    <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-xs)" }}>{l.since || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {(complianceFlags || keyRisks || otherFields.length > 0) && (
+        <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff", marginBottom:"1rem" }}>
+          {complianceFlags && <KV k="Compliance Flags"   v={complianceFlags} />}
+          {keyRisks        && <KV k="Key Regulatory Risks" v={keyRisks} />}
+          {otherFields.map((f, i) => <KV key={i} k={str(f.field_name).replace(/_/g," ")} v={str(f.raw_value)} />)}
+        </div>
+      )}
     </div>
   )
 }
@@ -411,9 +644,20 @@ function ErrorState({ error, onBack }: { error:string; onBack:()=>void }) {
 }
 
 const NAV_SECTIONS = [
-  { label:"Profile",          items:[{id:"overview",title:"Overview"},{id:"score",title:"Score Card"},{id:"funding",title:"Funding"}]},
-  { label:"New Sources · v3", items:[{id:"youtube",title:"YouTube"},{id:"linkedin",title:"LinkedIn Signals"},{id:"glassdoor",title:"Glassdoor"}]},
-  { label:"Data",             items:[{id:"raw",title:"Raw Fields"}]},
+  { label:"Profile", items:[
+    {id:"overview",    title:"Overview"},
+    {id:"score",       title:"Score Card"},
+    {id:"founders",    title:"Founders"},
+    {id:"funding",     title:"Funding"},
+    {id:"products",    title:"Products"},
+    {id:"regulatory",  title:"Regulatory"},
+  ]},
+  { label:"New Sources · v3", items:[
+    {id:"youtube",    title:"YouTube"},
+    {id:"linkedin",   title:"LinkedIn Signals"},
+    {id:"glassdoor",  title:"Glassdoor"},
+  ]},
+  { label:"Data", items:[{id:"raw",title:"Raw Fields"}]},
 ]
 const navGroupLabel: React.CSSProperties = { fontFamily:"monospace", fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--text-xs)", padding:"1.25rem 1.25rem 0.375rem" }
 const navItem = (active:boolean): React.CSSProperties => ({ display:"flex", alignItems:"center", gap:8, padding:"6px 1.25rem", fontSize:13, color:active?"var(--navy)":"var(--text-m)", borderLeft:`2px solid ${active?"var(--blue)":"transparent"}`, background:active?"var(--blue-lt)":"transparent", cursor:"pointer", border:"none", width:"100%", textAlign:"left", fontWeight:active?500:400, transition:"all 0.12s" })

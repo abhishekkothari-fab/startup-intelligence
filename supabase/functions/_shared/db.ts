@@ -3,6 +3,30 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { StartupProfile, PassesStatus } from "./research.ts";
 
+// Sanitize values before DB insert to avoid PostgreSQL type-mismatch errors.
+// Claude sometimes returns "2015" for dates or "500+" for integers.
+function safeDate(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  // Accept YYYY, YYYY-MM, or YYYY-MM-DD — pad to full date
+  const m = s.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
+  if (!m) return null;
+  const y = m[1], mo = m[2] || "01", d = m[3] || "01";
+  return `${y}-${mo}-${d}`;
+}
+
+function safeInt(v: unknown): number | null {
+  if (v == null) return null;
+  const n = parseInt(String(v).replace(/[^\d]/g, ""), 10);
+  return isNaN(n) ? null : n;
+}
+
+function safeNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = parseFloat(String(v).replace(/[^\d.]/g, ""));
+  return isNaN(n) ? null : n;
+}
+
 export function getSupabaseClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -67,19 +91,23 @@ export async function updatePassStatus(
 
 // ── Startup writes ────────────────────────────────────────────────
 
-// Creates a startup record from the first pass (overview); returns startup_id.
+// Creates or updates a startup record from the first pass (overview); returns startup_id.
+// Uses select-then-insert/update to avoid a dependency on a DB unique constraint.
 export async function writeStartupCore(
   supabase: SupabaseClient,
   profile: Partial<StartupProfile>,
   jobId: string
 ): Promise<string> {
+  const brandName = profile.brand_name || "Unknown";
+  const hqCountry = profile.hq_country || "IN";
+
   const payload = {
-    brand_name:        profile.brand_name       || "Unknown",
-    hq_country:        profile.hq_country       || "IN",
+    brand_name:        brandName,
+    hq_country:        hqCountry,
     legal_name:        profile.legal_name        ?? null,
     cin:               profile.cin               ?? null,
     website:           profile.website           ?? null,
-    founded_date:      profile.founded_date      ?? null,
+    founded_date:      safeDate(profile.founded_date),
     hq_city:           profile.hq_city           ?? null,
     auto_stage:        profile.auto_stage        ?? null,
     auto_industry:     profile.auto_industry     ?? null,
@@ -87,19 +115,37 @@ export async function writeStartupCore(
     auto_region:       profile.auto_region       ?? null,
     auto_biz_model:    profile.auto_biz_model    ?? null,
     auto_entity_pack:  profile.auto_entity_pack  ?? null,
-    total_raised_usd_m:profile.total_raised_usd_m ?? null,
+    total_raised_usd_m:safeNum(profile.total_raised_usd_m),
     last_round_type:   profile.last_round_type   ?? null,
-    last_round_date:   profile.last_round_date   ?? null,
-    team_size:         profile.team_size         ?? null,
+    last_round_date:   safeDate(profile.last_round_date),
+    team_size:         safeInt(profile.team_size),
     last_collected_at: new Date().toISOString(),
     job_id:            jobId,
   };
+
+  // Check for an existing record first to avoid needing a DB unique constraint
+  const { data: existing } = await supabase
+    .from("startups")
+    .select("id")
+    .ilike("brand_name", brandName)
+    .eq("hq_country", hqCountry)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("startups")
+      .update(payload)
+      .eq("id", existing.id);
+    if (error) throw new Error(`writeStartupCore update failed: ${error.message}`);
+    return existing.id;
+  }
+
   const { data, error } = await supabase
     .from("startups")
-    .upsert(payload, { onConflict: "brand_name,hq_country", ignoreDuplicates: false })
+    .insert(payload)
     .select("id")
     .single();
-  if (error) throw new Error(`writeStartupCore failed: ${error.message}`);
+  if (error) throw new Error(`writeStartupCore insert failed: ${error.message}`);
   return data.id;
 }
 
@@ -115,6 +161,12 @@ const STARTUP_SCALAR_FIELDS: (keyof StartupProfile)[] = [
   "glassdoor_wlb", "glassdoor_culture", "glassdoor_themes",
 ];
 
+const DATE_FIELDS = new Set(["founded_date", "last_round_date"]);
+const INT_FIELDS  = new Set(["team_size", "client_count", "glassdoor_reviews", "glassdoor_recommend"]);
+const NUM_FIELDS  = new Set(["revenue_inr_cr", "revenue_yoy_pct", "net_profit_inr_cr",
+  "total_raised_usd_m", "last_round_size_inr_cr",
+  "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture"]);
+
 export async function writeStartupPartial(
   supabase: SupabaseClient,
   startupId: string,
@@ -123,7 +175,11 @@ export async function writeStartupPartial(
   const payload: Record<string, unknown> = { last_collected_at: new Date().toISOString() };
   for (const field of STARTUP_SCALAR_FIELDS) {
     const val = (partial as Record<string, unknown>)[field];
-    if (val !== null && val !== undefined) payload[field] = val;
+    if (val === null || val === undefined) continue;
+    if (DATE_FIELDS.has(field)) { const d = safeDate(val); if (d) payload[field] = d; }
+    else if (INT_FIELDS.has(field))  { const n = safeInt(val);  if (n !== null) payload[field] = n; }
+    else if (NUM_FIELDS.has(field))  { const n = safeNum(val);  if (n !== null) payload[field] = n; }
+    else payload[field] = val;
   }
   if (Object.keys(payload).length > 1) {
     const { error } = await supabase.from("startups").update(payload).eq("id", startupId);

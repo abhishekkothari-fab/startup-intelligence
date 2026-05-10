@@ -140,6 +140,8 @@ interface PassSpec {
   system: string
   user: (co: string, country: string) => string
   maxTokens: number
+  maxSearches?: number  // defaults to 1
+  model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
 }
 
 const PASS_SPECS: Record<PassName, PassSpec> = {
@@ -173,12 +175,26 @@ Extract from SERP snippets only — do NOT visit Glassdoor directly.`,
   },
 
   funding: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
-{"total_raised_usd_m":null,"last_round_type":null,"last_round_date":null,"last_round_size_inr_cr":null,"raw_fields":[]}
+    system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history. Return ONLY valid JSON:
+{
+  "total_raised_usd_m": null,
+  "last_round_type": null,
+  "last_round_date": null,
+  "last_round_size_inr_cr": null,
+  "raw_fields": []
+}
 last_round_type: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
-Also capture in raw_fields: investor_1_name, investor_1_tier (tier1/tier2/angel/govt), investor_2_name (if exists), round_count (number).`,
-    user: (co) => `Search: "${co} funding rounds investors raised valuation 2024 2025" — return funding JSON.`,
-    maxTokens: 2000,
+Currency: ₹83 cr ≈ $1M. Always convert INR→USD. Never return null just because amount is in INR.
+
+Capture these in raw_fields (ALL must use field_pack="funding"):
+- round_count: total number of funding rounds (number as string)
+- round_history: JSON string of ALL rounds found, most recent first. Format each round as {"type":"Series B","date":"2021-06","amount_usd_m":15,"lead":"Accel","investors":["Accel","Tiger Global"]}
+- investor_1_name through investor_5_name: top 5 investors by prominence (strings)
+- investor_1_tier through investor_3_tier: tier1/tier2/angel/govt for top 3 investors
+- lead_investor: lead investor of the most recent round`,
+    user: (co) => `Search 1: "${co} funding history all rounds investors crunchbase tracxn inc42 total raised"\nSearch 2: "${co} Series A B C D investors lead investor amount 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON.`,
+    maxTokens: 3000,
+    maxSearches: 2,
   },
 
   products: {
@@ -188,6 +204,7 @@ Capture these field_names: product_count, product_1_name, product_1_description,
 If you cannot find information for a field, set raw_value to "unknown". Always return at least one raw_field entry.`,
     user: (co) => `Search: "${co} products features API technology platform" — return products raw_fields JSON. Even if search results are sparse, return your best understanding.`,
     maxTokens: 1500,
+    model: "claude-haiku-4-5-20251001",
   },
 
   regulatory: {
@@ -196,6 +213,7 @@ If you cannot find information for a field, set raw_value to "unknown". Always r
 CIN format: U12345AB2020PTC123456. Capture in raw_fields: incorporation_date, registered_state, mca_status (active/struck_off), authorized_capital_cr, paid_up_capital_cr.`,
     user: (co) => `Search: "${co} MCA CIN India company registration incorporation" — return regulatory JSON.`,
     maxTokens: 1000,
+    model: "claude-haiku-4-5-20251001",
   },
 
   signals: {
@@ -204,6 +222,7 @@ CIN format: U12345AB2020PTC123456. Capture in raw_fields: incorporation_date, re
 Also capture in raw_fields: latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market.`,
     user: (co) => `Search: "${co} revenue financials ARR growth news 2024 2025 clients" — return signals JSON.`,
     maxTokens: 1500,
+    model: "claude-haiku-4-5-20251001",
   },
 
   youtube: {
@@ -213,6 +232,7 @@ video_type: founder_on_camera|podcast_feature|product_demo|culture_content|news_
 Capture up to 8 videos from YouTube search results.`,
     user: (co) => `Search: "${co} site:youtube.com" — return youtube signals JSON.`,
     maxTokens: 2000,
+    model: "claude-haiku-4-5-20251001",
   },
 
   linkedin: {
@@ -220,12 +240,22 @@ Capture up to 8 videos from YouTube search results.`,
 {"linkedin":[{"pass":9,"author_name":null,"author_org":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: founder_traction_claim|investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
 Capture up to 6 posts from LinkedIn SERP snippets.`,
-    user: (co) => `Search: site:linkedin.com "${co}" "excited to announce" OR "proud to back" OR "invested" OR "partner" — return linkedin signals JSON.`,
+    user: (co) => `Search: "${co} LinkedIn announcement funding investment partnership hiring 2024 2025" — return linkedin signals JSON from SERP snippets.`,
     maxTokens: 2000,
+    model: "claude-haiku-4-5-20251001",
   },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+// Promise.race-based timeout — works even when AbortController can't cancel in-flight fetches.
+// Returns null on timeout so the pass is marked failed and research continues.
+function raceTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+  ])
+}
 
 function parseJson(text: string): Record<string, unknown> | null {
   const s = text.indexOf("{")
@@ -254,18 +284,26 @@ function mergePartial(
 
 // ── Claude API call ───────────────────────────────────────────────
 
+// Uses AbortSignal.timeout() — a spec-native fetch cancellation that works
+// at the runtime level rather than relying on JS event-loop timers.
+function timedFetch(url: string, options: RequestInit, ms: number): Promise<Response> {
+  return fetch(url, { ...options, signal: AbortSignal.timeout(ms) })
+}
+
 async function claudeCall(
   apiKey: string,
   system: string,
   userMsg: string,
   maxTokens: number,
-  maxSearches: number
+  maxSearches: number,
+  deadlineMs: number,   // absolute wall-clock deadline (Date.now()-based)
+  model = "claude-sonnet-4-6"
 ): Promise<string | null> {
   const messages: Array<{ role: string; content: unknown }> = [
     { role: "user", content: userMsg }
   ]
   const bodyBase: Record<string, unknown> = {
-    model: "claude-sonnet-4-6",
+    model,
     max_tokens: maxTokens,
     system,
   }
@@ -273,33 +311,33 @@ async function claudeCall(
     bodyBase.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: maxSearches }]
   }
 
-  const timeoutMs = maxSearches > 0 ? 70_000 : 35_000
-
   for (let i = 0; i < 5; i++) {
-    const abort = new AbortController()
-    const timer = setTimeout(() => abort.abort(), timeoutMs)
+    // Per-fetch budget: remaining wall-clock minus 8s buffer, capped at 50s per call.
+    const perFetchMs = Math.max(Math.min(50_000, deadlineMs - Date.now() - 8_000), 5_000)
+
     let res: Response
     try {
-      res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+      res = await timedFetch(
+        "https://api.anthropic.com/v1/messages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({ ...bodyBase, messages }),
         },
-        body: JSON.stringify({ ...bodyBase, messages }),
-        signal: abort.signal,
-      })
+        perFetchMs
+      )
     } catch (e) {
       throw new Error(`API call failed: ${e}`)
-    } finally {
-      clearTimeout(timer)
     }
 
-    // Retry after back-off on rate limit
+    // Retry on rate limit, capped at 10s to avoid a long stall
     if (res.status === 429) {
-      const retryAfter = parseInt(res.headers.get("retry-after") || "15", 10)
-      console.warn(`Rate limited — waiting ${retryAfter}s before retry`)
+      const retryAfter = Math.min(parseInt(res.headers.get("retry-after") || "10", 10), 10)
+      console.warn(`Rate limited — waiting ${retryAfter}s`)
       await new Promise(r => setTimeout(r, retryAfter * 1000))
       continue
     }
@@ -508,14 +546,18 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     raw_fields: [],
   }
 
+  // Hard deadline: 130s — leaves 20s for DB cleanup before EdgeRuntime kills at 150s.
+  const deadline = Date.now() + 130_000
+
   await req.onProgress?.(5, "Starting research")
 
-  // Run passes in parallel batches — each batch fires simultaneously,
-  // completing when the slowest pass in that batch finishes (~20s per batch).
+  // Two batches of 3 — reliably completes within 150s.
+  // signals/youtube/linkedin require web searches that can hang indefinitely in this
+  // EdgeRuntime (no JS-side timeout can cancel an in-flight fetch), so they are
+  // excluded from the main job. They can be run via a separate optional function call.
   const PASS_BATCHES: PassName[][] = [
     ["overview", "founders", "glassdoor"],
     ["funding", "products", "regulatory"],
-    ["signals", "youtube", "linkedin"],
   ]
 
   for (const batch of PASS_BATCHES) {
@@ -531,6 +573,16 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     }
     if (toRun.length === 0) continue
 
+    // Skip batch entirely if less than 10s remains — not enough time for any API call
+    if (deadline - Date.now() < 10_000) {
+      for (const p of toRun) {
+        passesStatus[p] = { status: "failed", completed_at: new Date().toISOString(), error: "Wall-clock budget exhausted" }
+      }
+      await req.onPassStatusUpdate?.({ ...passesStatus })
+      console.warn(`[${req.jobId}] Skipping batch ${toRun.join(",")} — wall-clock budget exhausted`)
+      break
+    }
+
     console.log(`[${req.jobId}] Batch starting: ${toRun.join(", ")}`)
     await req.onProgress?.(PASS_PROGRESS[toRun[0]] - 3, `Running: ${toRun.join(", ")}`)
 
@@ -538,8 +590,10 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     const results = await Promise.all(toRun.map(async (passName) => {
       try {
         const spec = PASS_SPECS[passName]
-        const text = await claudeCall(
-          apiKey, spec.system, spec.user(req.company, req.country), spec.maxTokens, 1
+        const budgetMs = Math.max(Math.min(50_000, deadline - Date.now() - 8_000), 5_000)
+        const text = await raceTimeout(
+          claudeCall(apiKey, spec.system, spec.user(req.company, req.country), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
+          budgetMs
         )
         if (text === null || text.trim() === "") {
           return { passName, partial: null as Partial<StartupProfile> | null, error: "No response from API" }

@@ -1,4 +1,4 @@
-// supabase/functions/profile-startup/index.ts
+// supabase/functions/profile-startup/index.ts  v2
 // POST /functions/v1/profile-startup
 // Body: { company: string, country?: string, requested_by?: string }
 // Returns immediately with job_id; research runs in background.
@@ -132,11 +132,12 @@ async function runResearch(jobId: string, company: string, country: string): Pro
         passesStatus = updatedStatus;
 
         try {
-          if (!startupId && partial.brand_name) {
-            // First pass with real data — create the startup record
+          if (!startupId && passName === "overview") {
+            // Create startup on overview completion; fall back to requested company name
+            // if Claude returned null for brand_name (e.g. web search gave poor results)
             startupId = await writeStartupCore(
               supabase,
-              { ...partial, hq_country: partial.hq_country || country },
+              { ...partial, brand_name: partial.brand_name || company, hq_country: partial.hq_country || country },
               jobId
             );
             console.log(`[${jobId}] Startup created: ${startupId}`);
@@ -154,7 +155,13 @@ async function runResearch(jobId: string, company: string, country: string): Pro
             await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
           }
         } catch (e) {
-          console.warn(`[${jobId}] Pass ${passName} DB write failed (non-fatal):`, e);
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`[${jobId}] Pass ${passName} DB write FAILED: ${msg}`);
+          // Surface DB errors into passes_status so they're visible without logs
+          updatedStatus[passName] = {
+            ...updatedStatus[passName],
+            error: `DB write failed: ${msg}`,
+          };
         }
 
         await updatePassStatus(supabase, jobId, updatedStatus);

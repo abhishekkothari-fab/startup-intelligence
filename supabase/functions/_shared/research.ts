@@ -210,12 +210,7 @@ Return ONLY valid JSON in this exact structure. Every field_name in raw_fields m
     {"field_name":"round_1_date","field_pack":"funding","applicability":"applicable","raw_value":"2023-08","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
     {"field_name":"round_1_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"200","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
     {"field_name":"round_1_lead","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_1_investors","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners, Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_2_type","field_pack":"funding","applicability":"applicable","raw_value":"Series C","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_2_date","field_pack":"funding","applicability":"applicable","raw_value":"2022-05","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_2_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"100","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_2_lead","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_2_investors","field_pack":"funding","applicability":"applicable","raw_value":"Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9}
+    {"field_name":"round_1_investors","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners, Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9}
   ]
 }
 
@@ -238,7 +233,7 @@ Only add rounds that you actually found in search results. Add as many rounds as
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
       return `Search: "${co} ${cname}${sector} funding rounds investors total raised Series A B C D crunchbase tracxn inc42 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
     },
-    maxTokens: 3000,
+    maxTokens: 5000,
     maxSearches: 1,
   },
 
@@ -410,11 +405,20 @@ async function claudeCall(
 
     const data = await res.json()
 
-    if (data.stop_reason === "end_turn") {
+    if (data.stop_reason === "end_turn" || data.stop_reason === "stop_sequence") {
       return (data.content as { type: string; text?: string }[])
         .filter(b => b.type === "text")
         .map(b => b.text || "")
         .join("")
+    }
+
+    // Extract partial text even on max_tokens — JSON may still be parseable
+    if (data.stop_reason === "max_tokens") {
+      const partial = (data.content as { type: string; text?: string }[])
+        .filter(b => b.type === "text")
+        .map(b => b.text || "")
+        .join("")
+      if (partial.trim()) return partial
     }
 
     if (data.stop_reason === "tool_use") {

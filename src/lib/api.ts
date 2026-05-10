@@ -54,15 +54,37 @@ export interface Score {
   dim_product:        number
   dim_market:         number
   dim_momentum:       number
+  w_founder?:         number
+  w_traction?:        number
+  w_capital?:         number
+  w_product?:         number
+  w_market?:          number
+  w_momentum?:        number
   data_quality_pct:   number
+  fields_applicable?:     number
+  fields_collected?:      number
+  fields_unknown?:        number
+  fields_not_applicable?: number
   status:             string
   stage:              string
-  r_funding_velocity?:    number
-  r_founder_mkt_fit?:     number
-  r_traction_velocity?:   number
-  r_investor_quality?:    number
-  r_product_surface?:     number
+  industry?:          string
+  industry_sub?:      string
+  score_version?:     string
+  r_funding_velocity?:     number
+  r_founder_mkt_fit?:      number
+  r_traction_velocity?:    number
+  r_investor_quality?:     number
+  r_product_surface?:      number
   r_recognition_momentum?: number
+  r_capital_efficiency?:   number
+  r_valuation_arr_mult?:   number
+  r_team_leverage?:        number
+  r_grant_equity_ratio?:   number
+  r_round_up_ratio?:       number
+  r_gnpa_pct?:             number
+  r_nim_pct?:              number
+  r_car_pct?:              number
+  r_roe_pct?:              number
   scored_at:          string
 }
 
@@ -74,12 +96,15 @@ export interface YouTubeSignal {
   channel_name?:  string
   is_own_channel: boolean
   key_quote?:     string
+  signal_tags?:   string[]
+  confidence?:    number
 }
 
 export interface LinkedInSignal {
   pass:         number
   author_name?: string
   author_org?:  string
+  author_role?: string
   signal_type:  string
   post_text?:   string
   post_url?:    string

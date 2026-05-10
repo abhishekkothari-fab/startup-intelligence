@@ -122,21 +122,34 @@ function OverviewTab({ s, sc, score }: { s: Record<string, unknown>; sc: FullPro
         <h1 style={{ fontSize: "clamp(36px, 5vw, 64px)", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text-h)", lineHeight: 0.95, marginBottom: "0.625rem" }}>
           {str(s.brand_name)}
         </h1>
-        {str(s.legal_name) && (
-          <p style={{ fontSize: 13, color: "var(--text-s)", fontFamily: "monospace", marginBottom: "1rem" }}>
-            {str(s.legal_name)}{str(s.cin) ? ` · CIN: ${str(s.cin)}` : ""}
-          </p>
-        )}
+        <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", marginBottom:"1rem" }}>
+          {str(s.legal_name) && (
+            <span style={{ fontSize: 13, color: "var(--text-s)", fontFamily: "monospace" }}>
+              {str(s.legal_name)}{str(s.cin) ? ` · CIN: ${str(s.cin)}` : ""}
+            </span>
+          )}
+          {str(s.website) && (
+            <a href={str(s.website).startsWith("http") ? str(s.website) : `https://${str(s.website)}`} target="_blank" rel="noreferrer"
+              style={{ fontFamily:"monospace", fontSize:11, color:"var(--blue)", textDecoration:"none", border:"1px solid var(--blue-md)", borderRadius:4, padding:"2px 8px", background:"var(--blue-lt)" }}>
+              ↗ {str(s.website).replace(/^https?:\/\//,"")}
+            </a>
+          )}
+        </div>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: "1.75rem" }}>
         <Chip navy>{str(s.stage).replace(/_/g," ").toUpperCase()}</Chip>
         {Boolean(s.is_profitable) && <Chip green>✓ Profitable</Chip>}
         {str(s.industry)         && <Chip blue>{str(s.industry)}</Chip>}
+        {str(s.industry_sub)     && <Chip blue>{str(s.industry_sub)}</Chip>}
+        {str(s.biz_model)        && <Chip gray>{str(s.biz_model)}</Chip>}
+        {str(s.region)           && <Chip gray>{str(s.region)}</Chip>}
         {str(s.hq_city)          && <Chip gray>{str(s.hq_city)}</Chip>}
+        {str(s.founded_date)     && <Chip gray>Est. {str(s.founded_date).slice(0,4)}</Chip>}
         {str(s.glassdoor_rating) && <Chip amber>Glassdoor {str(s.glassdoor_rating)}/5</Chip>}
       </div>
-      <StatGrid>
-        <StatCard label="Revenue"      value={s.revenue_inr_cr     ? `₹${str(s.revenue_inr_cr)} Cr`   : "—"} sub={str(s.revenue_fy)} />
+      <StatGrid cols={5}>
+        <StatCard label="Revenue"      value={s.revenue_inr_cr     ? `₹${str(s.revenue_inr_cr)} Cr`   : "—"} sub={[str(s.revenue_fy), s.revenue_yoy_pct ? `YoY ${str(s.revenue_yoy_pct)}%` : ""].filter(Boolean).join(" · ")} />
+        <StatCard label="Net Profit"   value={s.net_profit_inr_cr  ? `₹${str(s.net_profit_inr_cr)} Cr`: "—"} sub={Boolean(s.is_profitable) ? "Profitable" : s.net_profit_inr_cr ? "Loss" : ""} />
         <StatCard label="Total Raised" value={s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M` : "—"} sub={str(s.last_round_type)} />
         <StatCard label="Clients"      value={s.client_count       ? `${str(s.client_count)}+`         : "—"} sub="Enterprise" />
         <StatCard label="Team"         value={s.team_size          ? str(s.team_size)                  : "—"} sub="employees" />
@@ -157,50 +170,106 @@ function OverviewTab({ s, sc, score }: { s: Record<string, unknown>; sc: FullPro
   )
 }
 
+function RatioGrid({ rows }: { rows: [string, string][] }) {
+  const visible = rows.filter(([,v]) => v !== "—")
+  if (!visible.length) return null
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>
+      {rows.map(([k,v], i) => (
+        <div key={k} style={{ padding:"9px 14px", background:i%2===0?"#fff":"var(--bg-soft)", borderBottom:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+          <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-s)" }}>{k}</span>
+          <span style={{ fontFamily:"monospace", fontSize:11, fontWeight:500, color:v==="—"?"var(--text-xs)":"var(--text-h)" }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ScoreTab({ sc }: { sc: FullProfile["latest_score"] }) {
   if (!sc) return <Empty>No score data yet.</Empty>
-  const dims: [string, number, string][] = [
-    ["Founder Quality",    sc.dim_founder,  "5% at growth"],
-    ["Traction / Revenue", sc.dim_traction, "40% at growth"],
-    ["Capital / Funding",  sc.dim_capital,  "15% at growth"],
-    ["Product / Moat",     sc.dim_product,  "15% at growth"],
-    ["Market Opportunity", sc.dim_market,   "15% at growth"],
-    ["Momentum",           sc.dim_momentum, "10% at growth"],
+  const fmt = (n?: number | null) => n != null ? String(n) : "—"
+  const pct = (n?: number | null) => n != null ? `${(n*100).toFixed(0)}%` : "—"
+  const dims: [string, number, number | undefined][] = [
+    ["Founder Quality",    sc.dim_founder,  sc.w_founder],
+    ["Traction / Revenue", sc.dim_traction, sc.w_traction],
+    ["Capital / Funding",  sc.dim_capital,  sc.w_capital],
+    ["Product / Moat",     sc.dim_product,  sc.w_product],
+    ["Market Opportunity", sc.dim_market,   sc.w_market],
+    ["Momentum",           sc.dim_momentum, sc.w_momentum],
   ]
+  const hasNbfc = sc.r_gnpa_pct || sc.r_nim_pct || sc.r_car_pct || sc.r_roe_pct
   return (
     <div>
       <SecHeader title="Score Card" tag="Scoring" />
+
+      {/* metadata strip */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"1rem" }}>
+        {sc.score_version && <Chip gray>{sc.score_version}</Chip>}
+        {sc.stage         && <Chip blue>{sc.stage.replace(/_/g," ")}</Chip>}
+        {sc.industry      && <Chip gray>{sc.industry}</Chip>}
+        {sc.industry_sub  && <Chip gray>{sc.industry_sub}</Chip>}
+        <Chip gray>{sc.status}</Chip>
+        {sc.scored_at     && <Chip gray>Scored {sc.scored_at.slice(0,10)}</Chip>}
+      </div>
+
       <DQBar pct={sc.data_quality_pct} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
-        {dims.map(([name, val, wt]) => (
-          <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontFamily: "monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-s)" }}>{name}</span>
-              <span style={{ fontSize: 20, fontWeight: 700, color: scoreColor(val) }}>{val}</span>
+
+      {/* field count breakdown */}
+      {sc.fields_applicable != null && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:1, background:"var(--border)", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>
+          {([["Applicable", sc.fields_applicable, "var(--green)"],["Collected", sc.fields_collected, "var(--blue)"],["Unknown", sc.fields_unknown, "var(--amber)"],["N/A", sc.fields_not_applicable, "var(--text-xs)"]] as [string,number|undefined,string][]).map(([l,v,c])=>(
+            <div key={l} style={{ background:"#fff", padding:"0.75rem 1rem" }}>
+              <div style={{ fontFamily:"monospace", fontSize:9, textTransform:"uppercase", letterSpacing:"0.08em", color:"var(--text-xs)", marginBottom:3 }}>{l}</div>
+              <div style={{ fontSize:20, fontWeight:700, color:c }}>{v ?? "—"}</div>
             </div>
-            <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${val}%`, background: scoreColor(val), borderRadius: 3 }}/>
+          ))}
+        </div>
+      )}
+
+      {/* dimension scores */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:"1.5rem" }}>
+        {dims.map(([name, val, w]) => (
+          <div key={name} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:8, padding:"1rem" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+              <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-s)" }}>{name}</span>
+              <span style={{ fontSize:20, fontWeight:700, color:scoreColor(val) }}>{val}</span>
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-xs)", marginTop: 5 }}>{wt}</div>
+            <div style={{ height:5, background:"var(--bg-soft)", borderRadius:3, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${val}%`, background:scoreColor(val), borderRadius:3 }}/>
+            </div>
+            <div style={{ fontSize:11, color:"var(--text-xs)", marginTop:5 }}>
+              {w != null ? `Weight: ${pct(w)}` : "—"}
+            </div>
           </div>
         ))}
       </div>
+
       <SecHeader title="Ratios" tag="Analytics" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-        {([
-          ["Funding Velocity",   sc.r_funding_velocity     ? `₹${sc.r_funding_velocity} Cr/mo`     : "—"],
-          ["Founder-Market Fit", sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`           : "—"],
-          ["Traction Velocity",  sc.r_traction_velocity    ? `${sc.r_traction_velocity} cl/mo`      : "—"],
-          ["Investor Quality",   sc.r_investor_quality     ? String(sc.r_investor_quality)           : "—"],
-          ["Product Surface",    sc.r_product_surface      ? String(sc.r_product_surface)            : "—"],
-          ["Recognition",        sc.r_recognition_momentum ? String(sc.r_recognition_momentum)       : "—"],
-        ] as [string,string][]).map(([k,v], i) => (
-          <div key={k} style={{ padding: "9px 14px", background: i%2===0?"#fff":"var(--bg-soft)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontFamily: "monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-s)" }}>{k}</span>
-            <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 500, color: "var(--text-h)" }}>{v}</span>
-          </div>
-        ))}
-      </div>
+      <RatioGrid rows={[
+        ["Funding Velocity",    sc.r_funding_velocity     ? `₹${sc.r_funding_velocity} Cr/mo`  : "—"],
+        ["Traction Velocity",   sc.r_traction_velocity    ? `${sc.r_traction_velocity} cl/mo`   : "—"],
+        ["Founder-Market Fit",  sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`        : "—"],
+        ["Investor Quality",    sc.r_investor_quality     ? fmt(sc.r_investor_quality)           : "—"],
+        ["Product Surface",     sc.r_product_surface      ? fmt(sc.r_product_surface)            : "—"],
+        ["Recognition",         sc.r_recognition_momentum ? fmt(sc.r_recognition_momentum)       : "—"],
+        ["Capital Efficiency",  sc.r_capital_efficiency   ? fmt(sc.r_capital_efficiency)         : "—"],
+        ["Valuation/ARR Mult",  sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult}x`        : "—"],
+        ["Team Leverage",       sc.r_team_leverage        ? fmt(sc.r_team_leverage)              : "—"],
+        ["Grant/Equity Ratio",  sc.r_grant_equity_ratio   ? fmt(sc.r_grant_equity_ratio)         : "—"],
+        ["Round-up Ratio",      sc.r_round_up_ratio       ? fmt(sc.r_round_up_ratio)             : "—"],
+      ]} />
+
+      {hasNbfc && (
+        <>
+          <SecHeader title="NBFC Ratios" tag="FinServ" />
+          <RatioGrid rows={[
+            ["GNPA %",  sc.r_gnpa_pct ? `${sc.r_gnpa_pct}%` : "—"],
+            ["NIM %",   sc.r_nim_pct  ? `${sc.r_nim_pct}%`  : "—"],
+            ["CAR %",   sc.r_car_pct  ? `${sc.r_car_pct}%`  : "—"],
+            ["ROE %",   sc.r_roe_pct  ? `${sc.r_roe_pct}%`  : "—"],
+          ]} />
+        </>
+      )}
     </div>
   )
 }
@@ -229,8 +298,15 @@ function YouTubeTab({ videos }: { videos: YouTubeSignal[] }) {
             <span style={{ fontFamily:"monospace", fontSize:11, color:"var(--text-xs)", paddingTop:2 }}>{String(i+1).padStart(2,"0")}</span>
             <div>
               <div style={{ fontSize:13, fontWeight:500, color:"var(--text-h)", lineHeight:1.4 }}>{v.video_title}</div>
-              <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)", marginTop:2 }}>{v.published_date} · {v.channel_name}</div>
+              <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)", marginTop:2 }}>
+                {v.published_date} · {v.channel_name}{v.confidence!=null ? ` · conf: ${v.confidence}` : ""}
+              </div>
               {v.key_quote&&<div style={{ fontSize:12, color:"var(--text-m)", fontStyle:"italic", marginTop:4 }}>"{v.key_quote}"</div>}
+              {v.signal_tags?.length && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:5 }}>
+                  {v.signal_tags.map((t,ti)=><span key={ti} style={{ fontFamily:"monospace", fontSize:9, padding:"1px 5px", borderRadius:3, background:"var(--bg-soft)", border:"1px solid var(--border)", color:"var(--slate)" }}>{t}</span>)}
+                </div>
+              )}
             </div>
             <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"3px 7px", borderRadius:4, whiteSpace:"nowrap", background:typeBg[v.video_type]||"var(--bg-soft)", color:typeClr[v.video_type]||"var(--slate)", border:"1px solid var(--border)" }}>{v.video_type?.replace(/_/g," ")}</span>
           </div>
@@ -259,12 +335,16 @@ function LiCard({ s }: { s: LinkedInSignal }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:8 }}>
         <div>
           <div style={{ fontSize:13, fontWeight:600, color:"var(--text-h)" }}>{s.author_name||"Unknown"}</div>
-          <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)" }}>{s.author_org}</div>
+          {s.author_role && <div style={{ fontSize:11, color:"var(--text-m)", marginTop:1 }}>{s.author_role}</div>}
+          <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)", marginTop:1 }}>{s.author_org}</div>
         </div>
         <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:4, border:"1px solid var(--border)", background:"var(--bg-soft)", color:"var(--slate)", whiteSpace:"nowrap", flexShrink:0 }}>{s.signal_type?.replace(/_/g," ")}</span>
       </div>
       {s.post_text&&<div style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.6, fontStyle:"italic" }}>"{s.post_text}"</div>}
-      <div style={{ fontFamily:"monospace", fontSize:9, color:"var(--text-xs)", marginTop:8 }}>conf: {s.confidence}{s.post_date?` · ${s.post_date}`:""}</div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8 }}>
+        <span style={{ fontFamily:"monospace", fontSize:9, color:"var(--text-xs)" }}>conf: {s.confidence}{s.post_date?` · ${s.post_date}`:""}</span>
+        {s.post_url && <a href={s.post_url} target="_blank" rel="noreferrer" style={{ fontFamily:"monospace", fontSize:9, color:"var(--blue)", textDecoration:"none" }}>View post ↗</a>}
+      </div>
     </div>
   )
 }
@@ -385,7 +465,7 @@ function RawTab({ summary }: { summary: Record<string, unknown>[] }) {
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
           <thead>
             <tr style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)" }}>
-              {["Field","Pack","Value","Applicability","Source","Conf"].map(h=>(
+              {["Field","Pack","Type","Value","Applicability / Reason","Source","Conf"].map(h=>(
                 <th key={h} style={{ textAlign:"left", fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", fontWeight:500, padding:"7px 12px" }}>{h}</th>
               ))}
             </tr>
@@ -395,13 +475,19 @@ function RawTab({ summary }: { summary: Record<string, unknown>[] }) {
               <tr key={i} style={{ borderBottom:"1px solid var(--border)", background: i%2===0?"#fff":"var(--bg-soft)" }}>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)", whiteSpace:"nowrap" }}>{str(f.field_name)}</td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)", whiteSpace:"nowrap" }}>{str(f.field_pack)}</td>
-                <td style={{ padding:"7px 12px", fontSize:12, color:"var(--text-m)", maxWidth:280 }} title={str(f.raw_value)}>
-                  {str(f.raw_value) ? (str(f.raw_value).length > 70 ? str(f.raw_value).slice(0,70)+"…" : str(f.raw_value)) : <span style={{ color:"var(--text-xs)", fontStyle:"italic" }}>—</span>}
+                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)", whiteSpace:"nowrap" }}>{str(f.data_type)||"—"}</td>
+                <td style={{ padding:"7px 12px", fontSize:12, color:"var(--text-m)", maxWidth:240 }} title={str(f.raw_value)}>
+                  {str(f.raw_value) ? (str(f.raw_value).length > 60 ? str(f.raw_value).slice(0,60)+"…" : str(f.raw_value)) : <span style={{ color:"var(--text-xs)", fontStyle:"italic" }}>—</span>}
                 </td>
-                <td style={{ padding:"7px 12px" }}>
+                <td style={{ padding:"7px 12px", maxWidth:180 }}>
                   <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"1px 6px", borderRadius:3, background:f.applicability==="applicable"?"var(--green-lt)":f.applicability==="unknown"?"var(--amber-lt)":"var(--red-lt)", color:f.applicability==="applicable"?"var(--green)":f.applicability==="unknown"?"var(--amber)":"var(--red)" }}>{str(f.applicability)}</span>
+                  {str(f.applicability_reason) && <div style={{ fontSize:10, color:"var(--text-xs)", marginTop:2, fontStyle:"italic" }}>{str(f.applicability_reason)}</div>}
                 </td>
-                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-s)", whiteSpace:"nowrap" }}>{str(f.source_type)}</td>
+                <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-s)", whiteSpace:"nowrap" }}>
+                  {str(f.source_url)
+                    ? <a href={str(f.source_url)} target="_blank" rel="noreferrer" style={{ color:"var(--blue)", textDecoration:"none" }} title={str(f.source_url)}>{str(f.source_type)||"link"} ↗</a>
+                    : str(f.source_type)||"—"}
+                </td>
                 <td style={{ padding:"7px 12px", fontFamily:"monospace", fontSize:10, color:"var(--text-xs)" }}>{f.confidence?str(f.confidence):"—"}</td>
               </tr>
             ))}
@@ -578,8 +664,8 @@ function RegulatoryTab({ raw }: { raw: Record<string, unknown>[] }) {
   )
 }
 
-function StatGrid({ children }: { children: React.ReactNode }) {
-  return <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:1, background:"var(--border)", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>{children}</div>
+function StatGrid({ children, cols }: { children: React.ReactNode; cols?: number }) {
+  return <div style={{ display:"grid", gridTemplateColumns:`repeat(${cols??4},1fr)`, gap:1, background:"var(--border)", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>{children}</div>
 }
 function StatCard({ label, value, sub }: { label:string; value:string; sub:string }) {
   return (

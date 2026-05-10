@@ -236,10 +236,10 @@ Only add rounds that you actually found in search results. Add as many rounds as
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search 1: "${co} ${cname}${sector} funding history all rounds investors crunchbase tracxn inc42 total raised"\nSearch 2: "${co} ${cname} Series A B C D investors lead investor amount 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
+      return `Search: "${co} ${cname}${sector} funding rounds investors total raised Series A B C D crunchbase tracxn inc42 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
     },
     maxTokens: 3000,
-    maxSearches: 2,
+    maxSearches: 1,
   },
 
   products: {
@@ -653,7 +653,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     const results = await Promise.all(toRun.map(async (passName) => {
       try {
         const spec = PASS_SPECS[passName]
-        const budgetMs = Math.max(Math.min(50_000, deadline - Date.now() - 8_000), 5_000)
+        const budgetMs = Math.max(Math.min(90_000, deadline - Date.now() - 8_000), 5_000)
         // Pass merged context so batch-2 queries can use industry/stage from batch-1 overview
         const ctx = { industry: merged.auto_industry, stage: merged.auto_stage }
         const text = await raceTimeout(

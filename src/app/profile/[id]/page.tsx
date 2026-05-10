@@ -385,13 +385,16 @@ function FundingTab({ s, raw }: { s: Record<string, unknown>; raw: Record<string
   const rv = (name: string) => rawVal(raw, name)
   const roundCount  = rv("round_count")
   const leadInv     = rv("lead_investor")
-  const roundHistRaw = rv("round_history")
   const investors = [1,2,3,4,5].map(n => ({ name: rv(`investor_${n}_name`), tier: rv(`investor_${n}_tier`) })).filter(i => i.name)
 
-  let roundHistory: { type?: string; date?: string; amount_usd_m?: number; lead?: string; investors?: string[] }[] = []
-  if (roundHistRaw) {
-    try { roundHistory = JSON.parse(roundHistRaw) } catch { /* invalid json */ }
-  }
+  // Build round history from flat fields (round_1_type, round_1_date, etc.)
+  const roundHistory = [1,2,3,4,5].map(n => ({
+    type:          rv(`round_${n}_type`),
+    date:          rv(`round_${n}_date`),
+    amount_usd_m:  rv(`round_${n}_amount_usd_m`),
+    lead:          rv(`round_${n}_lead`),
+    investors_str: rv(`round_${n}_investors`),
+  })).filter(r => r.type)
 
   return (
     <div>
@@ -436,7 +439,7 @@ function FundingTab({ s, raw }: { s: Record<string, unknown>; raw: Record<string
                     <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-s)" }}>{r.date || "—"}</td>
                     <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-h)" }}>{r.amount_usd_m ? `$${r.amount_usd_m}M` : "—"}</td>
                     <td style={{ padding:"8px 12px", fontSize:12, color:"var(--text-m)" }}>{r.lead || "—"}</td>
-                    <td style={{ padding:"8px 12px", fontSize:11, color:"var(--text-s)" }}>{r.investors?.join(", ") || "—"}</td>
+                    <td style={{ padding:"8px 12px", fontSize:11, color:"var(--text-s)" }}>{r.investors_str || "—"}</td>
                   </tr>
                 ))}
               </tbody>

@@ -189,34 +189,50 @@ IMPORTANT: Only return data for the Indian company. Discard any results for same
   funding: {
     system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
 
-CRITICAL: You MUST populate raw_fields with actual investor and round data. An empty raw_fields array is WRONG.
+CRITICAL: You MUST populate raw_fields with actual investor and round data found in search results. An empty raw_fields array is WRONG and unacceptable.
 
-Return ONLY valid JSON in this exact structure:
+Return ONLY valid JSON in this exact structure. Every field_name in raw_fields must have a plain string raw_value — NO nested JSON, NO arrays:
 {
-  "total_raised_usd_m": null,
-  "last_round_type": null,
-  "last_round_date": null,
-  "last_round_size_inr_cr": null,
+  "total_raised_usd_m": 200,
+  "last_round_type": "Series D",
+  "last_round_date": "2023-08",
+  "last_round_size_inr_cr": 1660,
   "raw_fields": [
-    {"field_name":"round_count","field_pack":"funding","applicability":"applicable","raw_value":"4","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"lead_investor","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"investor_1_name","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_count","field_pack":"funding","applicability":"applicable","raw_value":"5","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"lead_investor","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"investor_1_name","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
     {"field_name":"investor_1_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
-    {"field_name":"investor_2_name","field_pack":"funding","applicability":"applicable","raw_value":"Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_history","field_pack":"funding","applicability":"applicable","raw_value":"[{\"type\":\"Series B\",\"date\":\"2022-06\",\"amount_usd_m\":20,\"lead\":\"Accel\",\"investors\":[\"Accel\",\"Tiger Global\"]}]","data_type":"json","source_type":"web","source_url":null,"confidence":0.85}
+    {"field_name":"investor_2_name","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"investor_2_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
+    {"field_name":"investor_3_name","field_pack":"funding","applicability":"applicable","raw_value":"Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"investor_3_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
+    {"field_name":"round_1_type","field_pack":"funding","applicability":"applicable","raw_value":"Series D","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_1_date","field_pack":"funding","applicability":"applicable","raw_value":"2023-08","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_1_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"200","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_1_lead","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_1_investors","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners, Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_2_type","field_pack":"funding","applicability":"applicable","raw_value":"Series C","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_2_date","field_pack":"funding","applicability":"applicable","raw_value":"2022-05","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_2_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"100","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_2_lead","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
+    {"field_name":"round_2_investors","field_pack":"funding","applicability":"applicable","raw_value":"Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9}
   ]
 }
 
 Required raw_fields (ALL must have field_pack="funding"):
-- round_count: total rounds as a numeric string (e.g. "4")
+- round_count: total number of funding rounds as a string (e.g. "5")
 - lead_investor: lead investor of the most recent round
 - investor_1_name through investor_5_name: top investors by prominence
-- investor_1_tier through investor_3_tier: "tier1"|"tier2"|"angel"|"govt"
-- round_history: a JSON string array of all rounds, most recent first — each: {"type","date":"YYYY-MM","amount_usd_m","lead","investors":[...]}
+- investor_1_tier through investor_5_tier: "tier1" (Sequoia/Accel/Tiger/SoftBank etc) | "tier2" | "angel" | "govt"
+- round_1_type through round_5_type: "Angel"|"Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Pre-IPO"|"IPO" — most recent first
+- round_1_date through round_5_date: "YYYY-MM" format
+- round_1_amount_usd_m through round_5_amount_usd_m: amount in USD millions as a plain number string
+- round_1_lead through round_5_lead: lead investor name for each round
+- round_1_investors through round_5_investors: all investors comma-separated as a single string
 
-Currency rules: ₹83 Cr ≈ $1M. Convert INR→USD for total_raised_usd_m. Never return null just because amounts are in INR.
+Currency rules: ₹83 Cr ≈ $1M. Always convert INR to USD for amount_usd_m. Never return null for amount just because it is in INR.
 last_round_type must be one of: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
-Set applicability="unknown" and raw_value=null only if the information is genuinely absent after searching.`,
+Only add rounds that you actually found in search results. Add as many rounds as you find (up to 5). If a field is truly unknown after searching, set applicability="unknown" and raw_value=null.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
@@ -599,13 +615,12 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
 
   await req.onProgress?.(5, "Starting research")
 
-  // Two batches of 3 — reliably completes within 150s.
-  // signals/youtube/linkedin require web searches that can hang indefinitely in this
-  // EdgeRuntime (no JS-side timeout can cancel an in-flight fetch), so they are
-  // excluded from the main job. They can be run via a separate optional function call.
+  // Two batches run in parallel within each batch.
+  // Batch 1: core identity passes. Batch 2: deeper data passes including signals.
+  // youtube/linkedin excluded — they can hang indefinitely (no reliable JS-side timeout).
   const PASS_BATCHES: PassName[][] = [
     ["overview", "founders", "glassdoor"],
-    ["funding", "products", "regulatory"],
+    ["funding", "products", "regulatory", "signals"],
   ]
 
   for (const batch of PASS_BATCHES) {

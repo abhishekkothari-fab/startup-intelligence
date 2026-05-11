@@ -170,7 +170,7 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
 Founders: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
-CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP roles held by non-founders. Only include if the person is NOT already captured as a founder.
+CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP roles held by non-founders. Only include if the person is NOT already captured as a founder. ONLY add entries for people you actually found — never output "not specified", "unknown", or placeholder text as a raw_value. Omit the field entirely if the person was not found.
 IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country

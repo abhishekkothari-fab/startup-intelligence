@@ -9,13 +9,14 @@ export type PassesStatus = Record<string, {
 
 export const PASS_NAMES = [
   "overview", "founders", "glassdoor", "funding",
-  "products", "regulatory", "signals", "youtube", "linkedin"
+  "products", "regulatory", "signals", "youtube", "linkedin_founder", "linkedin_company"
 ] as const
 export type PassName = typeof PASS_NAMES[number]
 
 export const PASS_PROGRESS: Record<PassName, number> = {
   overview: 10, founders: 20, glassdoor: 28, funding: 38,
-  products: 48, regulatory: 55, signals: 65, youtube: 75, linkedin: 85
+  products: 48, regulatory: 55, signals: 65, youtube: 75,
+  linkedin_founder: 82, linkedin_company: 90,
 }
 
 export interface ResearchRequest {
@@ -138,7 +139,7 @@ export interface StartupProfile {
 
 interface PassSpec {
   system: string
-  user: (co: string, country: string, ctx?: { industry?: string; stage?: string }) => string
+  user: (co: string, country: string, ctx?: { industry?: string; stage?: string; founderName?: string }) => string
   maxTokens: number
   maxSearches?: number  // defaults to 1
   model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
@@ -291,17 +292,30 @@ Capture up to 8 videos. Only include videos about the Indian company.`,
     model: "claude-haiku-4-5-20251001",
   },
 
-  linkedin: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
-{"linkedin":[{"pass":9,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
-signal_type: founder_traction_claim|investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
-Capture up to 6 posts from LinkedIn SERP snippets. Only include posts about the Indian company.`,
-    user: (co, country, ctx) => {
-      const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} LinkedIn announcement funding investment partnership hiring 2024 2025" — return linkedin signals JSON for the Indian company ${co}.`
+  linkedin_founder: {
+    system: `Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
+{"linkedin":[{"pass":8,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
+signal_type: founder_traction_claim|hiring_signal|partnership_announcement|product_launch|culture_post
+Capture up to 4 posts written BY the founder on LinkedIn. Summarise each post_text in 1–2 sentences with any numbers or claims. Only include posts about the Indian company.`,
+    user: (co, _country, ctx) => {
+      const founderQuery = ctx?.founderName ? `"${ctx.founderName}" ${co}` : `"${co}" founder`
+      return `Search: "${founderQuery} site:linkedin.com" — return linkedin signals JSON for posts written by the founder of the Indian company ${co}.`
     },
     maxTokens: 2000,
-    model: "claude-haiku-4-5-20251001",
+    maxSearches: 1,
+  },
+
+  linkedin_company: {
+    system: `Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
+{"linkedin":[{"pass":9,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
+signal_type: investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
+Capture up to 4 posts from LinkedIn SERP snippets — investor posts, company page announcements, third-party mentions. Summarise each post_text in 1–2 sentences with any numbers or claims. Only include posts about the Indian company.`,
+    user: (co, country, _ctx) => {
+      const cname = country === "IN" ? "India" : country
+      return `Search: "${co} ${cname} site:linkedin.com investment partnership announcement hiring 2024 2025" — return linkedin signals JSON for third-party mentions of the Indian company ${co}.`
+    },
+    maxTokens: 2000,
+    maxSearches: 1,
   },
 }
 
@@ -619,12 +633,13 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
 
   await req.onProgress?.(5, "Starting research")
 
-  // Two batches run in parallel within each batch.
-  // Batch 1: core identity passes. Batch 2: deeper data passes including signals.
-  // youtube/linkedin excluded — they can hang indefinitely (no reliable JS-side timeout).
+  // Three batches, passes within each batch run in parallel.
+  // Batch 1: core identity. Batch 2: deeper data. Batch 3: media signals.
+  // raceTimeout wraps every claudeCall so hanging passes are capped at the budget.
   const PASS_BATCHES: PassName[][] = [
     ["overview", "founders", "glassdoor"],
     ["funding", "products", "regulatory", "signals"],
+    ["youtube", "linkedin_founder", "linkedin_company"],
   ]
 
   for (const batch of PASS_BATCHES) {
@@ -658,8 +673,9 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
       try {
         const spec = PASS_SPECS[passName]
         const budgetMs = Math.max(Math.min(90_000, deadline - Date.now() - 8_000), 5_000)
-        // Pass merged context so batch-2 queries can use industry/stage from batch-1 overview
-        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage }
+        // Pass merged context — batch-2 uses industry/stage; batch-3 uses founderName
+        const founderName = merged.raw_fields?.find(f => f.field_name === "founder_1_name")?.raw_value
+        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName }
         const text = await raceTimeout(
           claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
           budgetMs

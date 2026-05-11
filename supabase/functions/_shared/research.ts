@@ -172,6 +172,7 @@ IMPORTANT: Search specifically for the Indian company founders. Ignore founders 
       return `Search: "${co} ${cname} founders CEO CTO leadership background education LinkedIn" — return founders raw_fields JSON for the Indian startup ${co}.`
     },
     maxTokens: 2000,
+    model: "claude-haiku-4-5-20251001",
   },
 
   glassdoor: {
@@ -185,6 +186,7 @@ IMPORTANT: Only return data for the Indian company. Discard any results for same
       return `Search: "${co} ${cname} Glassdoor rating employee reviews work culture 2024 2025" — return glassdoor JSON from snippets for the Indian company ${co}.`
     },
     maxTokens: 800,
+    model: "claude-haiku-4-5-20251001",
   },
 
   funding: {

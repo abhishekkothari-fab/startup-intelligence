@@ -387,7 +387,7 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
     ["Culture & Values",    s.glassdoor_culture, "var(--amber)"],
     ["Career Opportunities",s.glassdoor_career_opp, "var(--blue)"],
   ]
-  const sentimentMetrics: [string, unknown][] = [
+  const sentimentMetrics: [string, string | null][] = [
     ["Would Recommend",    s.glassdoor_recommend          ? `${str(s.glassdoor_recommend)}%`           : null],
     ["Positive Outlook",   s.glassdoor_positive_outlook_pct  ? `${str(s.glassdoor_positive_outlook_pct)}%`  : null],
     ["Positive Interview", s.glassdoor_interview_positive_pct ? `${str(s.glassdoor_interview_positive_pct)}%` : null],

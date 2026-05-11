@@ -185,7 +185,7 @@ export default function HomePage() {
               Profile a startup
             </h2>
             <p style={{ fontSize: 13, color: "var(--text-s)", marginBottom: "1.5rem" }}>
-              Runs 9-pass research via Claude. Takes 3–5 minutes.
+              Runs 10-pass research via Claude. Takes 3–5 minutes.
             </p>
 
             {!jobStatus ? (

@@ -567,20 +567,20 @@ function FoundersTab({ raw }: { raw: Record<string, unknown>[] }) {
 
 function ProductsTab({ raw }: { raw: Record<string, unknown>[] }) {
   const rv = (name: string) => rawVal(raw, name)
-  const products = [1,2,3,4].map(n => ({
+  const products = [1,2,3,4,5].map(n => ({
     name:        rv(`product_${n}_name`),
     type:        rv(`product_${n}_type`),
     description: rv(`product_${n}_description`),
-    maturity:    rv(`product_${n}_maturity`),
-    users:       rv(`product_${n}_users`),
   })).filter(p => p.name)
-  const moatType     = rv("moat_type")
-  const moatDesc     = rv("moat_description")
-  const techStack    = rv("tech_stack_type")
-  const apiAvailable = rv("api_available")
-  const pricingModel = rv("pricing_model")
-  const productCount = rv("product_count")
-  const productPacks = rawByPack(raw, "products")
+  const moatType          = rv("moat_type")
+  const hasTechnicalMoat  = rv("has_technical_moat")
+  const hasApi            = rv("has_api")
+  const hasMobileApp      = rv("has_mobile_app")
+  const pricingModel      = rv("pricing_model")
+  const productCount      = rv("product_count")
+  const patentCount       = rv("patent_count")
+  const integrationsCount = rv("integrations_count")
+  const productPacks      = rawByPack(raw, "products")
   if (!products.length && !productPacks.length) return <Empty>No product data collected yet. Check Raw Fields tab.</Empty>
   return (
     <div>
@@ -593,21 +593,21 @@ function ProductsTab({ raw }: { raw: Record<string, unknown>[] }) {
               <div style={{ fontSize:15, fontWeight:700, color:"var(--text-h)" }}>{p.name}</div>
               {p.type && <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:4, background:"var(--blue-lt)", color:"var(--navy)", border:"1px solid var(--blue-md)" }}>{p.type}</span>}
             </div>
-            {p.description && <p style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.6, marginBottom:"0.75rem" }}>{p.description}</p>}
-            {p.maturity && <KV k="Maturity" v={p.maturity} />}
-            {p.users    && <KV k="Users"    v={p.users} />}
+            {p.description && <p style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.6 }}>{p.description}</p>}
           </div>
         ))}
       </div>
-      {(moatType || moatDesc || techStack || apiAvailable || pricingModel) && (
+      {(moatType || hasTechnicalMoat || hasApi || hasMobileApp || pricingModel || patentCount || integrationsCount) && (
         <>
           <SecHeader title="Platform Attributes" tag="Tech" />
           <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff" }}>
-            {moatType     && <KV k="Moat Type"     v={moatType} />}
-            {moatDesc     && <KV k="Moat"          v={moatDesc} />}
-            {techStack    && <KV k="Tech Stack"    v={techStack} />}
-            {apiAvailable && <KV k="API Available" v={apiAvailable} />}
-            {pricingModel && <KV k="Pricing Model" v={pricingModel} />}
+            {moatType          && <KV k="Moat Type"        v={moatType.replace(/_/g," ")} />}
+            {hasTechnicalMoat  && <KV k="Technical Moat"   v={hasTechnicalMoat} />}
+            {hasApi            && <KV k="Developer API"     v={hasApi} />}
+            {hasMobileApp      && <KV k="Mobile App"        v={hasMobileApp} />}
+            {pricingModel      && <KV k="Pricing Model"     v={pricingModel} />}
+            {patentCount       && <KV k="Patents"           v={patentCount} />}
+            {integrationsCount && <KV k="Integrations"      v={integrationsCount} />}
           </div>
         </>
       )}
@@ -619,50 +619,33 @@ function RegulatoryTab({ raw }: { raw: Record<string, unknown>[] }) {
   const rv = (name: string) => rawVal(raw, name)
   const fields = rawByPack(raw, "regulatory")
   if (!fields.length) return <Empty>No regulatory data collected yet.</Empty>
-  const licenses = [1,2,3,4].map(n => ({
-    name:      rv(`license_${n}_name`),
-    status:    rv(`license_${n}_status`),
-    regulator: rv(`license_${n}_regulator`),
-    since:     rv(`license_${n}_since`),
-  })).filter(l => l.name)
-  const complianceFlags = rv("compliance_flags")
-  const keyRisks        = rv("key_regulatory_risks")
-  const otherFields     = fields.filter(f => !str(f.field_name).startsWith("license_") && f.field_name !== "compliance_flags" && f.field_name !== "key_regulatory_risks")
+  const mcaStatus         = rv("mca_status")
+  const incorporationDate = rv("incorporation_date")
+  const registeredState   = rv("registered_state")
+  const authorisedCap     = rv("authorized_capital_cr")
+  const paidUpCap         = rv("paid_up_capital_cr")
+  const registeredAddress = rv("registered_address")
+  const knownFields = new Set(["mca_status","incorporation_date","registered_state","authorized_capital_cr","paid_up_capital_cr","registered_address"])
+  const extraFields = fields.filter(f => !knownFields.has(str(f.field_name)) && f.raw_value)
   return (
     <div>
-      <SecHeader title="Regulatory & Compliance" tag="Regulatory" />
-      {licenses.length > 0 && (
-        <>
-          <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-              <thead>
-                <tr style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)" }}>
-                  {["License","Status","Regulator","Since"].map(h=>(
-                    <th key={h} style={{ textAlign:"left", fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", fontWeight:500, padding:"7px 12px" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {licenses.map((l, i) => (
-                  <tr key={i} style={{ borderBottom:"1px solid var(--border)", background: i%2===0?"#fff":"var(--bg-soft)" }}>
-                    <td style={{ padding:"8px 12px", fontWeight:500, color:"var(--text-h)" }}>{l.name}</td>
-                    <td style={{ padding:"8px 12px" }}><span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:3, background:l.status==="active"?"var(--green-lt)":"var(--amber-lt)", color:l.status==="active"?"var(--green)":"var(--amber)", border:"1px solid var(--border)" }}>{l.status || "unknown"}</span></td>
-                    <td style={{ padding:"8px 12px", color:"var(--text-s)" }}>{l.regulator || "—"}</td>
-                    <td style={{ padding:"8px 12px", fontFamily:"monospace", fontSize:11, color:"var(--text-xs)" }}>{l.since || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <SecHeader title="Regulatory & Compliance" tag="MCA" />
+      <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff", marginBottom:"1.5rem" }}>
+        {mcaStatus && (
+          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:8, padding:"7px 0", borderBottom:"1px solid var(--border)" }}>
+            <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", paddingTop:1 }}>MCA Status</span>
+            <span style={{ fontSize:13 }}>
+              <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", padding:"2px 7px", borderRadius:3, background:mcaStatus==="active"?"var(--green-lt)":"var(--amber-lt)", color:mcaStatus==="active"?"var(--green)":"var(--amber)", border:"1px solid var(--border)" }}>{mcaStatus}</span>
+            </span>
           </div>
-        </>
-      )}
-      {(complianceFlags || keyRisks || otherFields.length > 0) && (
-        <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff", marginBottom:"1rem" }}>
-          {complianceFlags && <KV k="Compliance Flags"   v={complianceFlags} />}
-          {keyRisks        && <KV k="Key Regulatory Risks" v={keyRisks} />}
-          {otherFields.map((f, i) => <KV key={i} k={str(f.field_name).replace(/_/g," ")} v={str(f.raw_value)} />)}
-        </div>
-      )}
+        )}
+        {incorporationDate  && <KV k="Incorporation Date"   v={incorporationDate} />}
+        {registeredState    && <KV k="Registered State"     v={registeredState} />}
+        {authorisedCap      && <KV k="Authorised Capital"   v={`₹${authorisedCap} Cr`} />}
+        {paidUpCap          && <KV k="Paid-up Capital"      v={`₹${paidUpCap} Cr`} />}
+        {registeredAddress  && <KV k="Registered Address"   v={registeredAddress} />}
+        {extraFields.map((f, i) => <KV key={i} k={str(f.field_name).replace(/_/g," ")} v={str(f.raw_value)} />)}
+      </div>
     </div>
   )
 }

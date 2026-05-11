@@ -139,7 +139,7 @@ export interface StartupProfile {
 
 interface PassSpec {
   system: string
-  user: (co: string, country: string, ctx?: { industry?: string; stage?: string; founderName?: string }) => string
+  user: (co: string, country: string, ctx?: { industry?: string; stage?: string; founderName?: string; website?: string }) => string
   maxTokens: number
   maxSearches?: number  // defaults to 1
   model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
@@ -244,17 +244,32 @@ Only add rounds that you actually found in search results. Add as many rounds as
   },
 
   products: {
-    system: `Startup research analyst. Do exactly 1 web search. You MUST return a JSON object regardless of search results.
-Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"products","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
-Capture these field_names (field_pack must be "products" for all): product_count, product_1_name, product_1_description, product_1_type (B2B/B2C/B2B2C), has_api (yes/no), has_mobile_app (yes/no), has_technical_moat (yes/no — add brief reason), pricing_model, moat_type.
-If you cannot find information for a field, set applicability="unknown" and raw_value=null. Always return at least one raw_field entry.
+    system: `Startup research analyst. Do exactly 1 web search targeting the company's own website or product pages. You MUST return a JSON object regardless of search results.
+Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"products","applicability":"applicable","raw_value":"","source_type":"web","source_url":"https://actual-url-found.com","confidence":0.85}]}
+Set source_url to the actual page URL where data was found — never null.
+
+Capture these field_names (field_pack must be "products" for all):
+- product_count: total number of distinct products/solutions (string number)
+- product_1_name through product_5_name: product names, most prominent first
+- product_1_description through product_5_description: one-sentence description of each product
+- product_1_type through product_5_type: B2B|B2C|B2B2C for each product
+- has_api: yes/no — does the company offer a developer API
+- has_mobile_app: yes/no
+- has_technical_moat: yes/no — followed by a brief reason in parentheses
+- patent_count: number of patents filed or granted (string number, "0" if none found)
+- integrations_count: number of third-party integrations or partners listed (string number)
+- pricing_model: subscription|usage|freemium|one_time|enterprise|mixed
+- moat_type: proprietary_data|network_effects|switching_cost|regulatory_moat|deep_tech|brand|none
+
+Only capture products 2–5 if they actually exist. If a field is unknown, set applicability="unknown" and raw_value=null.
 IMPORTANT: Search specifically for the Indian company's products. Discard results for same-named companies elsewhere.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search: "${co} ${cname}${sector} products features API technology platform" — return products raw_fields JSON for the Indian startup ${co}.`
+      const siteHint = ctx?.website ? ` site:${new URL(ctx.website).hostname}` : ""
+      return `Search: "${co} ${cname}${sector} products solutions features API integrations patents platform${siteHint}" — return products raw_fields JSON for the Indian startup ${co}.`
     },
-    maxTokens: 1500,
+    maxTokens: 2000,
     model: "claude-haiku-4-5-20251001",
   },
 
@@ -682,9 +697,9 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
       try {
         const spec = PASS_SPECS[passName]
         const budgetMs = Math.max(Math.min(90_000, deadline - Date.now() - 8_000), 5_000)
-        // Pass merged context — batch-2 uses industry/stage; batch-3 uses founderName
+        // Pass merged context — batch-2 uses industry/stage/website; batch-3 uses founderName
         const founderName = merged.raw_fields?.find(f => f.field_name === "founder_1_name")?.raw_value
-        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName }
+        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName, website: merged.website }
         const text = await raceTimeout(
           claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
           budgetMs

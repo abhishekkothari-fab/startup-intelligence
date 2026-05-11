@@ -189,8 +189,11 @@ IMPORTANT: Only return data for the Indian company. Discard any results for same
 
   funding: {
     system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
+Search 1: target crunchbase.com or tracxn.com for structured round-by-round data.
+Search 2 (if round details incomplete): target inc42.com or entrackr.com for Indian funding news.
 
 CRITICAL: You MUST populate raw_fields with actual investor and round data found in search results. An empty raw_fields array is WRONG and unacceptable.
+For every raw_field entry, set source_url to the actual page URL where the data was found (not null).
 
 Return ONLY valid JSON in this exact structure. Every field_name in raw_fields must have a plain string raw_value — NO nested JSON, NO arrays:
 {
@@ -199,19 +202,15 @@ Return ONLY valid JSON in this exact structure. Every field_name in raw_fields m
   "last_round_date": "2023-08",
   "last_round_size_inr_cr": 1660,
   "raw_fields": [
-    {"field_name":"round_count","field_pack":"funding","applicability":"applicable","raw_value":"5","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"lead_investor","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"investor_1_name","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"investor_1_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
-    {"field_name":"investor_2_name","field_pack":"funding","applicability":"applicable","raw_value":"Accel","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"investor_2_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
-    {"field_name":"investor_3_name","field_pack":"funding","applicability":"applicable","raw_value":"Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"investor_3_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":null,"confidence":0.85},
-    {"field_name":"round_1_type","field_pack":"funding","applicability":"applicable","raw_value":"Series D","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_1_date","field_pack":"funding","applicability":"applicable","raw_value":"2023-08","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_1_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"200","data_type":"numeric","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_1_lead","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":null,"confidence":0.9},
-    {"field_name":"round_1_investors","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners, Accel, Tiger Global","data_type":"text","source_type":"web","source_url":null,"confidence":0.9}
+    {"field_name":"round_count","field_pack":"funding","applicability":"applicable","raw_value":"5","data_type":"numeric","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"lead_investor","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"investor_1_name","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"investor_1_tier","field_pack":"funding","applicability":"applicable","raw_value":"tier1","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.85},
+    {"field_name":"round_1_type","field_pack":"funding","applicability":"applicable","raw_value":"Series D","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"round_1_date","field_pack":"funding","applicability":"applicable","raw_value":"2023-08","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"round_1_amount_usd_m","field_pack":"funding","applicability":"applicable","raw_value":"200","data_type":"numeric","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"round_1_lead","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9},
+    {"field_name":"round_1_investors","field_pack":"funding","applicability":"applicable","raw_value":"Nexus Venture Partners, Accel, Tiger Global","data_type":"text","source_type":"web","source_url":"https://crunchbase.com/organization/idfy","confidence":0.9}
   ]
 }
 
@@ -219,23 +218,27 @@ Required raw_fields (ALL must have field_pack="funding"):
 - round_count: total number of funding rounds as a string (e.g. "5")
 - lead_investor: lead investor of the most recent round
 - investor_1_name through investor_5_name: top investors by prominence
-- investor_1_tier through investor_5_tier: "tier1" (Sequoia/Accel/Tiger/SoftBank etc) | "tier2" | "angel" | "govt"
+- investor_1_tier through investor_5_tier:
+    "tier1" = Sequoia/Accel/Tiger Global/SoftBank/Lightspeed/Matrix/Nexus/Elevation/SAIF/Kalaari/Blume/Stellaris/Peak XV/General Atlantic/Warburg Pincus/KKR/Temasek
+    "tier2" = other institutional VCs and CVCs
+    "angel" = individual angels
+    "govt" = government schemes (SIDBI, DPIIT, etc.)
 - round_1_type through round_5_type: "Angel"|"Pre-Seed"|"Seed"|"Series A"|"Series B"|"Series C"|"Series D"|"Pre-IPO"|"IPO" — most recent first
 - round_1_date through round_5_date: "YYYY-MM" format
 - round_1_amount_usd_m through round_5_amount_usd_m: amount in USD millions as a plain number string
 - round_1_lead through round_5_lead: lead investor name for each round
 - round_1_investors through round_5_investors: all investors comma-separated as a single string
 
-Currency rules: ₹83 Cr ≈ $1M. Always convert INR to USD for amount_usd_m. Never return null for amount just because it is in INR.
+Currency rules: ₹85 Cr ≈ $1M. Always convert INR to USD for amount_usd_m. Never return null for amount just because it is in INR.
 last_round_type must be one of: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
 Only add rounds that you actually found in search results. Add as many rounds as you find (up to 5). If a field is truly unknown after searching, set applicability="unknown" and raw_value=null.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search: "${co} ${cname}${sector} funding rounds investors total raised Series A B C D crunchbase tracxn inc42 2020 2021 2022 2023 2024 2025"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
+      return `Search: "${co} ${cname}${sector} funding rounds investors site:crunchbase.com OR site:tracxn.com OR site:inc42.com OR site:entrackr.com"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
     },
     maxTokens: 5000,
-    maxSearches: 1,
+    maxSearches: 2,
   },
 
   products: {

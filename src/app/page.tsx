@@ -71,7 +71,7 @@ export default function HomePage() {
           <div style={{
             width: 30, height: 30, background: "#fff", borderRadius: 6,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: "monospace", fontSize: 11, color: "var(--navy)", fontWeight: 700
+            fontFamily: "var(--mono)", fontSize: 11, color: "var(--navy)", fontWeight: 700
           }}>SI</div>
           <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Startup Intelligence</span>
         </div>
@@ -148,7 +148,7 @@ export default function HomePage() {
                       color: scoreColor(r.composite_score) }}>
                       {r.composite_score ?? "—"}
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 11, color: "var(--text-xs)" }}>
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
                       {r.data_quality_pct ? `${r.data_quality_pct}%` : "—"}
                     </td>
                     <td style={{ ...tdStyle, color: "var(--blue)" }}>View →</td>
@@ -230,7 +230,7 @@ export default function HomePage() {
                     {jobStatus === "completed" ? "Complete — redirecting…" :
                      jobStatus === "running"   ? "Running 9-pass research…" : "Queued…"}
                   </span>
-                  <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-xs)" }}>
+                  <span style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--text-xs)" }}>
                     {jobPct}%
                   </span>
                 </div>
@@ -250,7 +250,7 @@ const selStyle: React.CSSProperties = {
 }
 const thStyle: React.CSSProperties = {
   textAlign: "left", padding: "8px 12px",
-  fontFamily: "monospace", fontSize: 10, textTransform: "uppercase",
+  fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase",
   letterSpacing: "0.06em", color: "var(--text-xs)", fontWeight: 500
 }
 const tdStyle: React.CSSProperties = {
@@ -278,10 +278,10 @@ const pageBtn = (disabled: boolean): React.CSSProperties => ({
 const profitBadge: React.CSSProperties = {
   marginLeft: 8, fontSize: 9, background: "var(--green-lt)", color: "var(--green)",
   border: "1px solid var(--green-bd)", borderRadius: 4, padding: "1px 5px",
-  fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.06em"
+  fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.06em"
 }
 const stageBadge = (stage?: string): React.CSSProperties => ({
-  fontSize: 10, fontFamily: "monospace", textTransform: "uppercase",
+  fontSize: 10, fontFamily: "var(--mono)", textTransform: "uppercase",
   letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4,
   background: stage === "growth" ? "var(--navy)" : "var(--blue-lt)",
   color: stage === "growth" ? "#fff" : "var(--navy)",

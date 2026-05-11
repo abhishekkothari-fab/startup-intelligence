@@ -61,7 +61,7 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
       <header style={{ background: "var(--navy)", padding: "0 1.5rem", height: 56, display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <button onClick={() => router.push("/")} style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 5, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>← Back</button>
         <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{str(s.brand_name)}</span>
-        <span style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontFamily: "monospace" }}>Score: {score}/100</span>
+        <span style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontFamily: "var(--mono)" }}>Score: {score}/100</span>
       </header>
 
       {researching && (
@@ -82,10 +82,10 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
             </div>
           ))}
           <div style={{ margin: "1.5rem 1.25rem 0", paddingTop: "1.25rem", borderTop: "1px solid var(--border)" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 20, padding: "3px 10px", fontFamily: "monospace", fontSize: 10, color: "var(--green)" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 20, padding: "3px 10px", fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)" }}>
               ● DB v3 · {str(s.stage) || "—"}
             </div>
-            <div style={{ marginTop: 8, fontFamily: "monospace", fontSize: 10, color: "var(--text-xs)", lineHeight: 1.8 }}>
+            <div style={{ marginTop: 8, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", lineHeight: 1.8 }}>
               {sc?.data_quality_pct}% quality<br/>
               {profile.meta.youtube_count} YT videos<br/>
               {profile.meta.linkedin_count} LI signals<br/>
@@ -122,7 +122,7 @@ function OverviewTab({ s, sc, score, raw }: { s: Record<string, unknown>; sc: Fu
   return (
     <div>
       <div style={{ marginBottom: "0.75rem" }}>
-        <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--blue)", letterSpacing: "0.1em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, marginBottom: "0.75rem" }}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--blue)", letterSpacing: "0.1em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, marginBottom: "0.75rem" }}>
           <span style={{ display: "block", width: 18, height: 1.5, background: "var(--blue)" }}/>
           Intelligence Report · {str(s.industry)} · {str(s.hq_country)}
         </div>
@@ -131,7 +131,7 @@ function OverviewTab({ s, sc, score, raw }: { s: Record<string, unknown>; sc: Fu
         </h1>
         <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", marginBottom:"1rem" }}>
           {str(s.legal_name) && (
-            <span style={{ fontSize: 13, color: "var(--text-s)", fontFamily: "monospace" }}>
+            <span style={{ fontSize: 13, color: "var(--text-s)", fontFamily: "var(--mono)" }}>
               {str(s.legal_name)}{str(s.cin) ? ` · CIN: ${str(s.cin)}` : ""}
             </span>
           )}
@@ -187,7 +187,7 @@ function OverviewTab({ s, sc, score, raw }: { s: Record<string, unknown>; sc: Fu
       <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", display: "grid", gridTemplateColumns: "120px 1fr", gap: "1.5rem", alignItems: "center", background: "var(--bg-soft)" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 48, fontWeight: 700, color: scoreColor(score), lineHeight: 1 }}>{score}</div>
-          <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-xs)", marginTop: 4 }}>/100</div>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", marginTop: 4 }}>/100</div>
         </div>
         <div>
           <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-h)", marginBottom: "0.5rem" }}>Composite Intelligence Score</p>

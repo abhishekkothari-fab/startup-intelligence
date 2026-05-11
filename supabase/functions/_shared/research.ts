@@ -254,15 +254,19 @@ IMPORTANT: Search specifically for the Indian company's products. Discard result
   },
 
   regulatory: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+    system: `Startup research analyst. Do up to 2 web searches targeting MCA registry sources. Return ONLY valid JSON (null for unknown):
 {"cin":null,"legal_name":null,"raw_fields":[]}
-CIN format: U12345AB2020PTC123456. Capture in raw_fields (field_pack="regulatory" for all): incorporation_date, registered_state, mca_status (active/struck_off), authorized_capital_cr, paid_up_capital_cr.`,
+CIN is exactly 21 characters, e.g. U74999MH2011PTC218253. Format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number].
+Capture in raw_fields (field_pack="regulatory" for all): incorporation_date (YYYY-MM-DD), registered_state, mca_status (active/struck_off/under_liquidation), authorized_capital_cr (in INR crores), paid_up_capital_cr (in INR crores), registered_address.
+Search 1: target zaubacorp.com or tofler.in for the CIN and incorporation details.
+Search 2 (if CIN not found): try mca.gov.in or tracxn or startuptalky for the company.
+Only return data for the Indian company — discard results for same-named entities elsewhere.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} MCA CIN India company registration incorporation" — return regulatory JSON for the Indian company ${co}.`
+      return `Search: "${co} ${cname} CIN incorporation date registered address site:zaubacorp.com OR site:tofler.in OR site:mca.gov.in" — return regulatory JSON for the Indian company ${co}.`
     },
-    maxTokens: 1000,
-    model: "claude-haiku-4-5-20251001",
+    maxTokens: 1500,
+    maxSearches: 2,
   },
 
   signals: {

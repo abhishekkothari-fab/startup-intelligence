@@ -104,7 +104,7 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
           {activeTab === "linkedin"    && <LinkedInTab signals={profile.linkedin} />}
           {activeTab === "glassdoor"   && <GlassdoorTab s={s} />}
           {activeTab === "clients"     && <ClientsTab raw={profile.raw_summary} />}
-          {activeTab === "regulatory"  && <RegulatoryTab raw={profile.raw_summary} />}
+          {activeTab === "regulatory"  && <RegulatoryTab raw={profile.raw_summary} s={s} />}
           {activeTab === "raw"         && <RawTab summary={profile.raw_summary} />}
         </main>
       </div>
@@ -717,10 +717,11 @@ function ClientsTab({ raw }: { raw: Record<string, unknown>[] }) {
   )
 }
 
-function RegulatoryTab({ raw }: { raw: Record<string, unknown>[] }) {
+function RegulatoryTab({ raw, s }: { raw: Record<string, unknown>[]; s: Record<string, unknown> }) {
   const rv = (name: string) => rawVal(raw, name)
   const fields = rawByPack(raw, "regulatory")
-  if (!fields.length) return <Empty>No regulatory data collected yet.</Empty>
+  const mcaHasSomething = str(s.legal_name) || str(s.cin) || fields.length > 0
+  if (!mcaHasSomething) return <Empty>No regulatory data collected yet.</Empty>
   const mcaStatus         = rv("mca_status")
   const incorporationDate = rv("incorporation_date")
   const registeredState   = rv("registered_state")
@@ -733,6 +734,8 @@ function RegulatoryTab({ raw }: { raw: Record<string, unknown>[] }) {
     <div>
       <SecHeader title="Regulatory & Compliance" tag="MCA" />
       <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1rem 1.25rem", background:"#fff", marginBottom:"1.5rem" }}>
+        {str(s.legal_name) && <KV k="Legal Entity Name" v={str(s.legal_name)} />}
+        {str(s.cin)        && <KV k="CIN"               v={str(s.cin)} />}
         {mcaStatus && (
           <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:8, padding:"7px 0", borderBottom:"1px solid var(--border)" }}>
             <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)", paddingTop:1 }}>MCA Status</span>

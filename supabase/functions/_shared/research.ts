@@ -142,7 +142,7 @@ export interface StartupProfile {
 
 interface PassSpec {
   system: string
-  user: (co: string, country: string, ctx?: { industry?: string; stage?: string; founderName?: string; website?: string }) => string
+  user: (co: string, country: string, ctx?: { industry?: string; stage?: string; founderName?: string; website?: string; legalName?: string }) => string
   maxTokens: number
   maxSearches?: number  // defaults to 1
   model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
@@ -286,9 +286,10 @@ Capture in raw_fields (field_pack="regulatory" for all): incorporation_date (YYY
 Search 1: target zaubacorp.com or tofler.in for the CIN and incorporation details.
 Search 2 (if CIN not found): try mca.gov.in or tracxn or startuptalky for the company.
 Only return data for the Indian company — discard results for same-named entities elsewhere.`,
-    user: (co, country) => {
+    user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} CIN incorporation date registered address site:zaubacorp.com OR site:tofler.in OR site:mca.gov.in" — return regulatory JSON for the Indian company ${co}.`
+      const entity = ctx?.legalName || co
+      return `Search 1: "${entity} CIN site:zaubacorp.com OR site:tofler.in" — find MCA registration details for the legal entity.\nSearch 2 (if CIN not found): "${co} ${cname} incorporation registered" site:mca.gov.in OR site:startuptalky.com — return regulatory JSON for ${co} (legal entity: ${entity}).`
     },
     maxTokens: 1500,
     maxSearches: 2,
@@ -709,7 +710,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
         const budgetMs = Math.max(Math.min(90_000, deadline - Date.now() - 8_000), 5_000)
         // Pass merged context — batch-2 uses industry/stage/website; batch-3 uses founderName
         const founderName = merged.raw_fields?.find(f => f.field_name === "founder_1_name")?.raw_value
-        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName, website: merged.website }
+        const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName, website: merged.website, legalName: merged.legal_name }
         const text = await raceTimeout(
           claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
           budgetMs

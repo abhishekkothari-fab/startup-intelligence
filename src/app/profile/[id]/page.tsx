@@ -95,7 +95,7 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
         </nav>
 
         <main style={{ flex: 1, padding: "2.5rem", overflow: "auto" }}>
-          {activeTab === "overview"    && <OverviewTab s={s} sc={sc} score={score} />}
+          {activeTab === "overview"    && <OverviewTab s={s} sc={sc} score={score} raw={profile.raw_summary} />}
           {activeTab === "score"       && <ScoreTab sc={sc} />}
           {activeTab === "founders"    && <FoundersTab raw={profile.raw_summary} />}
           {activeTab === "funding"     && <FundingTab s={s} raw={profile.raw_summary} />}
@@ -103,6 +103,7 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
           {activeTab === "youtube"     && <YouTubeTab videos={profile.youtube} />}
           {activeTab === "linkedin"    && <LinkedInTab signals={profile.linkedin} />}
           {activeTab === "glassdoor"   && <GlassdoorTab s={s} />}
+          {activeTab === "clients"     && <ClientsTab raw={profile.raw_summary} />}
           {activeTab === "regulatory"  && <RegulatoryTab raw={profile.raw_summary} />}
           {activeTab === "raw"         && <RawTab summary={profile.raw_summary} />}
         </main>
@@ -111,7 +112,13 @@ export default function ProfilePage({ params, searchParams }: { params: Promise<
   )
 }
 
-function OverviewTab({ s, sc, score }: { s: Record<string, unknown>; sc: FullProfile["latest_score"]; score: number }) {
+function OverviewTab({ s, sc, score, raw }: { s: Record<string, unknown>; sc: FullProfile["latest_score"]; score: number; raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const revenueHistory = [1,2,3,4,5].map(n => ({
+    year: rv(`revenue_fy${n}_year`),
+    inr:  rv(`revenue_fy${n}_inr_cr`),
+  })).filter(r => r.year && r.inr)
+  const cagr = rv("revenue_cagr_5yr_pct")
   return (
     <div>
       <div style={{ marginBottom: "0.75rem" }}>
@@ -154,7 +161,30 @@ function OverviewTab({ s, sc, score }: { s: Record<string, unknown>; sc: FullPro
         <StatCard label="Clients"      value={s.client_count       ? `${str(s.client_count)}+`         : "—"} sub="Enterprise" />
         <StatCard label="Team"         value={s.team_size          ? str(s.team_size)                  : "—"} sub="employees" />
       </StatGrid>
-      <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", display: "grid", gridTemplateColumns: "120px 1fr", gap: "1.5rem", alignItems: "center", background: "var(--bg-soft)", marginTop: "0.5rem" }}>
+
+      {revenueHistory.length >= 2 && (
+        <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:"1.5rem" }}>
+          <div style={{ background:"var(--bg-soft)", borderBottom:"1.5px solid var(--border-md)", padding:"8px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontFamily:"monospace", fontSize:10, textTransform:"uppercase", letterSpacing:"0.06em", color:"var(--text-xs)" }}>Revenue History</span>
+            {cagr && <span style={{ fontFamily:"monospace", fontSize:10, color:"var(--green)", fontWeight:600 }}>{cagr}% 5-yr CAGR</span>}
+          </div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:0, padding:"1rem 1.25rem 0.75rem" }}>
+            {[...revenueHistory].reverse().map((r, i, arr) => {
+              const maxVal = Math.max(...arr.map(x => parseFloat(x.inr) || 0))
+              const barH = maxVal > 0 ? Math.max(8, Math.round(((parseFloat(r.inr) || 0) / maxVal) * 64)) : 8
+              return (
+                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                  <span style={{ fontFamily:"monospace", fontSize:9, color:"var(--text-s)" }}>₹{r.inr}Cr</span>
+                  <div style={{ width:"70%", height:barH, background:"var(--navy)", borderRadius:"3px 3px 0 0", opacity: 0.5 + (i / Math.max(arr.length - 1, 1)) * 0.5 }}/>
+                  <span style={{ fontFamily:"monospace", fontSize:9, color:"var(--text-xs)" }}>{r.year}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", display: "grid", gridTemplateColumns: "120px 1fr", gap: "1.5rem", alignItems: "center", background: "var(--bg-soft)" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 48, fontWeight: 700, color: scoreColor(score), lineHeight: 1 }}>{score}</div>
           <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text-xs)", marginTop: 4 }}>/100</div>
@@ -352,10 +382,20 @@ function LiCard({ s }: { s: LinkedInSignal }) {
 function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
   const rating = s.glassdoor_rating ? num(s.glassdoor_rating) : null
   if (!rating) return <Empty>No Glassdoor data collected.</Empty>
+  const subScores5: [string, unknown, string][] = [
+    ["Work-Life Balance",   s.glassdoor_wlb,     "var(--red)"],
+    ["Culture & Values",    s.glassdoor_culture, "var(--amber)"],
+    ["Career Opportunities",s.glassdoor_career_opp, "var(--blue)"],
+  ]
+  const sentimentMetrics: [string, unknown][] = [
+    ["Would Recommend",    s.glassdoor_recommend          ? `${str(s.glassdoor_recommend)}%`           : null],
+    ["Positive Outlook",   s.glassdoor_positive_outlook_pct  ? `${str(s.glassdoor_positive_outlook_pct)}%`  : null],
+    ["Positive Interview", s.glassdoor_interview_positive_pct ? `${str(s.glassdoor_interview_positive_pct)}%` : null],
+  ]
   return (
     <div>
       <SecHeader title="Glassdoor Culture Signal" tag="Pass 3" />
-      <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1.5rem", display:"grid", gridTemplateColumns:"180px 1fr", gap:"1.5rem", alignItems:"start" }}>
+      <div style={{ border:"1px solid var(--border)", borderRadius:8, padding:"1.5rem", display:"grid", gridTemplateColumns:"180px 1fr", gap:"1.5rem", alignItems:"start", marginBottom:"1.5rem" }}>
         <div style={{ textAlign:"center" }}>
           <div style={{ fontSize:52, fontWeight:700, color:"var(--text-h)", lineHeight:1 }}>{rating}</div>
           <div style={{ fontFamily:"monospace", fontSize:11, color:"var(--text-xs)", marginTop:2 }}>out of 5</div>
@@ -364,7 +404,7 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
         </div>
         <div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"1rem", marginBottom:"1rem" }}>
-            {([["Work-Life Balance",s.glassdoor_wlb,"var(--red)"],["Culture & Values",s.glassdoor_culture,"var(--amber)"],["Would Recommend",s.glassdoor_recommend?`${str(s.glassdoor_recommend)}%`:null,"var(--green)"]] as [string,unknown,string][]).map(([l,v,c])=>(
+            {subScores5.map(([l,v,c])=>(
               <div key={l}>
                 <div style={statLabel}>{l}</div>
                 <div style={{ height:5, background:"var(--bg-soft)", borderRadius:3, overflow:"hidden", margin:"5px 0" }}>
@@ -374,7 +414,15 @@ function GlassdoorTab({ s }: { s: Record<string, unknown> }) {
               </div>
             ))}
           </div>
-          {str(s.glassdoor_themes)&&<p style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.65 }}>{str(s.glassdoor_themes)}</p>}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"1rem" }}>
+            {sentimentMetrics.map(([l,v])=>(
+              <div key={l}>
+                <div style={statLabel}>{l}</div>
+                <div style={{ fontFamily:"monospace", fontSize:13, fontWeight:600, color:v?"var(--green)":"var(--text-xs)", marginTop:4 }}>{v||"—"}</div>
+              </div>
+            ))}
+          </div>
+          {str(s.glassdoor_themes)&&<p style={{ fontSize:13, color:"var(--text-m)", lineHeight:1.65, marginTop:"1rem" }}>{str(s.glassdoor_themes)}</p>}
         </div>
       </div>
     </div>
@@ -525,6 +573,10 @@ function FoundersTab({ raw }: { raw: Record<string, unknown>[] }) {
   const advisorCount    = rv("advisor_count")
   const notableAdvisors = rv("notable_advisors")
   const teamComposition = rv("team_composition")
+  const cxos = [1,2,3,4].map(n => ({
+    name: rv(`cxo_${n}_name`),
+    role: rv(`cxo_${n}_role`),
+  })).filter(c => c.name)
   if (!founders.length) return <Empty>No founder data collected yet. Check Raw Fields tab for any partial data.</Empty>
   return (
     <div>
@@ -551,6 +603,21 @@ function FoundersTab({ raw }: { raw: Record<string, unknown>[] }) {
           </div>
         ))}
       </div>
+
+      {cxos.length > 0 && (
+        <>
+          <SecHeader title="Leadership Team" tag="CXOs" />
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:10, marginBottom:"1.5rem" }}>
+            {cxos.map((c, i) => (
+              <div key={i} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:8, padding:"0.875rem 1rem" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--text-h)" }}>{c.name}</div>
+                {c.role && <div style={{ fontFamily:"monospace", fontSize:10, color:"var(--text-s)", marginTop:3, textTransform:"uppercase", letterSpacing:"0.05em" }}>{c.role}</div>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {(advisorCount || notableAdvisors || teamComposition) && (
         <>
           <SecHeader title="Team Context" tag="Advisory" />
@@ -611,6 +678,41 @@ function ProductsTab({ raw }: { raw: Record<string, unknown>[] }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function ClientsTab({ raw }: { raw: Record<string, unknown>[] }) {
+  const rv = (name: string) => rawVal(raw, name)
+  const clients = [1,2,3,4,5].map(n => ({
+    name:   rv(`client_${n}_name`),
+    sector: rv(`client_${n}_sector`),
+  })).filter(c => c.name)
+  if (!clients.length) return <Empty>No named client data collected yet.</Empty>
+  const sectorColor = (sector: string) => {
+    if (!sector) return { bg:"var(--bg-soft)", color:"var(--slate)", border:"var(--border)" }
+    const s = sector.toLowerCase()
+    if (s.includes("bfsi") || s.includes("bank") || s.includes("finance") || s.includes("insurance")) return { bg:"var(--blue-lt)", color:"var(--navy)", border:"var(--blue-md)" }
+    if (s.includes("health") || s.includes("pharma")) return { bg:"var(--green-lt)", color:"var(--green)", border:"var(--green-bd)" }
+    if (s.includes("tech") || s.includes("saas") || s.includes("ai")) return { bg:"var(--amber-lt)", color:"var(--amber)", border:"var(--amber-bd)" }
+    return { bg:"var(--bg-soft)", color:"var(--slate)", border:"var(--border)" }
+  }
+  return (
+    <div>
+      <SecHeader title="Enterprise Clients" tag="Clients" />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:10, marginBottom:"1.5rem" }}>
+        {clients.map((c, i) => {
+          const sc = sectorColor(c.sector)
+          return (
+            <div key={i} style={{ background:"#fff", border:"1px solid var(--border)", borderRadius:10, padding:"1.25rem" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"var(--text-h)", marginBottom:8 }}>{c.name}</div>
+              {c.sector && (
+                <span style={{ fontSize:9, fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"0.06em", padding:"2px 7px", borderRadius:4, background:sc.bg, color:sc.color, border:`1px solid ${sc.border}` }}>{c.sector}</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -722,6 +824,7 @@ const NAV_SECTIONS = [
     {id:"founders",    title:"Founders"},
     {id:"funding",     title:"Funding"},
     {id:"products",    title:"Products"},
+    {id:"clients",     title:"Clients"},
     {id:"regulatory",  title:"Regulatory"},
   ]},
   { label:"New Sources · v3", items:[

@@ -64,6 +64,9 @@ export interface StartupProfile {
   glassdoor_wlb?: number
   glassdoor_culture?: number
   glassdoor_themes?: string
+  glassdoor_career_opp?: number
+  glassdoor_positive_outlook_pct?: number
+  glassdoor_interview_positive_pct?: number
   scores: {
     stage: string
     dim_founder: number
@@ -165,27 +168,29 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
   founders: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
-Capture these field_names: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
-IMPORTANT: Search specifically for the Indian company founders. Ignore founders of same-named companies in other countries.`,
+Capture these field_names (field_pack="base" for all):
+Founders: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
+CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP roles held by non-founders. Only include if the person is NOT already captured as a founder.
+IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} founders CEO CTO leadership background education LinkedIn" — return founders raw_fields JSON for the Indian startup ${co}.`
+      return `Search: "${co} ${cname} founders CEO CTO CPO COO CFO executive leadership team C-suite background education" — return founders and CXO raw_fields JSON for the Indian startup ${co}.`
     },
-    maxTokens: 2000,
+    maxTokens: 2500,
     model: "claude-haiku-4-5-20251001",
   },
 
   glassdoor: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
-{"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_themes":null}
-glassdoor_rating: float, glassdoor_reviews: int, glassdoor_recommend: int (% who recommend), glassdoor_themes: CSV string of 3-5 culture themes.
+{"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_career_opp":null,"glassdoor_positive_outlook_pct":null,"glassdoor_interview_positive_pct":null,"glassdoor_themes":null}
+glassdoor_rating: float (overall). glassdoor_reviews: int (total count). glassdoor_recommend: int (% who recommend). glassdoor_wlb: float (work-life balance sub-score). glassdoor_culture: float (culture & values sub-score). glassdoor_career_opp: float (career opportunities sub-score). glassdoor_positive_outlook_pct: int (% positive business outlook). glassdoor_interview_positive_pct: int (% positive interview experience). glassdoor_themes: CSV of 3-5 culture themes.
 Extract from SERP snippets only — do NOT visit Glassdoor directly.
 IMPORTANT: Only return data for the Indian company. Discard any results for same-named companies in other countries.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} Glassdoor rating employee reviews work culture 2024 2025" — return glassdoor JSON from snippets for the Indian company ${co}.`
+      return `Search: "${co} ${cname} Glassdoor rating employee reviews career opportunities business outlook interview 2024 2025" — return glassdoor JSON from snippets for the Indian company ${co}.`
     },
-    maxTokens: 800,
+    maxTokens: 1000,
     model: "claude-haiku-4-5-20251001",
   },
 
@@ -292,15 +297,20 @@ Only return data for the Indian company — discard results for same-named entit
   signals: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"revenue_inr_cr":null,"revenue_fy":null,"revenue_yoy_pct":null,"net_profit_inr_cr":null,"is_profitable":null,"client_count":null,"raw_fields":[]}
-Also capture in raw_fields (field_pack="signals" for all): latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market.
+
+Capture in raw_fields (field_pack="signals" for all):
+- latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market
+- Multi-year revenue history (most recent first): revenue_fy1_year ("FY25"), revenue_fy1_inr_cr ("191"), revenue_fy2_year ("FY24"), revenue_fy2_inr_cr ("144"), revenue_fy3_year, revenue_fy3_inr_cr, revenue_fy4_year, revenue_fy4_inr_cr, revenue_fy5_year, revenue_fy5_inr_cr — only include years for which you found actual data
+- revenue_cagr_5yr_pct: 5-year revenue CAGR as a number string e.g. "54"
+- Named enterprise clients (up to 5): client_1_name, client_1_sector (e.g. "BFSI"), client_2_name, client_2_sector, client_3_name, client_3_sector, client_4_name, client_4_sector, client_5_name, client_5_sector — capture actual named companies, not generic counts
+
 IMPORTANT: Only report financials and news for the Indian company. Discard data from same-named companies elsewhere.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search: "${co} ${cname}${sector} revenue financials ARR growth news 2024 2025 clients" — return signals JSON for the Indian company ${co}.`
+      return `Search: "${co} ${cname}${sector} revenue financials ARR growth clients customers enterprise news 2024 2025" — return signals JSON for the Indian company ${co}.`
     },
-    maxTokens: 1500,
-    model: "claude-haiku-4-5-20251001",
+    maxTokens: 2500,
   },
 
   youtube: {
@@ -782,12 +792,15 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     team_size:             merged.team_size,
     client_count:          merged.client_count,
     is_profitable:         merged.is_profitable,
-    glassdoor_rating:      merged.glassdoor_rating,
-    glassdoor_reviews:     merged.glassdoor_reviews,
-    glassdoor_recommend:   merged.glassdoor_recommend,
-    glassdoor_wlb:         merged.glassdoor_wlb,
-    glassdoor_culture:     merged.glassdoor_culture,
-    glassdoor_themes:      merged.glassdoor_themes,
+    glassdoor_rating:               merged.glassdoor_rating,
+    glassdoor_reviews:              merged.glassdoor_reviews,
+    glassdoor_recommend:            merged.glassdoor_recommend,
+    glassdoor_wlb:                  merged.glassdoor_wlb,
+    glassdoor_culture:              merged.glassdoor_culture,
+    glassdoor_career_opp:           merged.glassdoor_career_opp,
+    glassdoor_positive_outlook_pct: merged.glassdoor_positive_outlook_pct,
+    glassdoor_interview_positive_pct: merged.glassdoor_interview_positive_pct,
+    glassdoor_themes:               merged.glassdoor_themes,
     scores: merged.scores || {
       stage,
       dim_founder: 25, dim_traction: 25, dim_capital: 20,

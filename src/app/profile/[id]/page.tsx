@@ -790,9 +790,9 @@ export default function ProfilePage({
               <div>
                 {!!(s.glassdoor_recommend || s.glassdoor_positive_outlook_pct || s.glassdoor_interview_positive_pct) && (
                   <div style={{ display: "flex", gap: "1.25rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-                    {s.glassdoor_recommend && <span style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>{str(s.glassdoor_recommend)}% Recommend</span>}
-                    {s.glassdoor_positive_outlook_pct && <span style={{ fontSize: 12, color: "var(--text-m)" }}>{str(s.glassdoor_positive_outlook_pct)}% Positive Outlook</span>}
-                    {s.glassdoor_interview_positive_pct && <span style={{ fontSize: 12, color: "var(--text-s)" }}>{str(s.glassdoor_interview_positive_pct)}% Positive Interviews</span>}
+                    {!!s.glassdoor_recommend && <span style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>{str(s.glassdoor_recommend)}% Recommend</span>}
+                    {!!s.glassdoor_positive_outlook_pct && <span style={{ fontSize: 12, color: "var(--text-m)" }}>{str(s.glassdoor_positive_outlook_pct)}% Positive Outlook</span>}
+                    {!!s.glassdoor_interview_positive_pct && <span style={{ fontSize: 12, color: "var(--text-s)" }}>{str(s.glassdoor_interview_positive_pct)}% Positive Interviews</span>}
                   </div>
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.25rem" }}>

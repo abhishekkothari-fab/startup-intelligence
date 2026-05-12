@@ -115,6 +115,7 @@ export async function writeStartupCore(
     auto_region:       profile.auto_region       ?? null,
     auto_biz_model:    profile.auto_biz_model    ?? null,
     auto_entity_pack:  profile.auto_entity_pack  ?? null,
+    auto_tagline:      profile.auto_tagline      ?? null,
     total_raised_usd_m:safeNum(profile.total_raised_usd_m),
     last_round_type:   profile.last_round_type   ?? null,
     last_round_date:   safeDate(profile.last_round_date),
@@ -153,19 +154,21 @@ export async function writeStartupCore(
 const STARTUP_SCALAR_FIELDS: (keyof StartupProfile)[] = [
   "legal_name", "cin", "website", "founded_date", "hq_city",
   "auto_stage", "auto_industry", "auto_industry_sub", "auto_region",
-  "auto_biz_model", "auto_entity_pack",
+  "auto_biz_model", "auto_entity_pack", "auto_tagline",
   "revenue_inr_cr", "revenue_fy", "revenue_yoy_pct", "net_profit_inr_cr",
   "total_raised_usd_m", "last_round_type", "last_round_date", "last_round_size_inr_cr",
   "team_size", "client_count", "is_profitable",
   "glassdoor_rating", "glassdoor_reviews", "glassdoor_recommend",
   "glassdoor_wlb", "glassdoor_culture", "glassdoor_themes",
+  "glassdoor_career_opp", "glassdoor_positive_outlook_pct", "glassdoor_interview_positive_pct",
 ];
 
 const DATE_FIELDS = new Set(["founded_date", "last_round_date"]);
-const INT_FIELDS  = new Set(["team_size", "client_count", "glassdoor_reviews", "glassdoor_recommend"]);
+const INT_FIELDS  = new Set(["team_size", "client_count", "glassdoor_reviews", "glassdoor_recommend",
+  "glassdoor_positive_outlook_pct", "glassdoor_interview_positive_pct"]);
 const NUM_FIELDS  = new Set(["revenue_inr_cr", "revenue_yoy_pct", "net_profit_inr_cr",
   "total_raised_usd_m", "last_round_size_inr_cr",
-  "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture"]);
+  "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture", "glassdoor_career_opp"]);
 
 export async function writeStartupPartial(
   supabase: SupabaseClient,

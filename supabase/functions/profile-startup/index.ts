@@ -1,6 +1,7 @@
 // supabase/functions/profile-startup/index.ts  v2
 // POST /functions/v1/profile-startup
-// Body: { company: string, country?: string, requested_by?: string }
+// Body: { company: string, country?: string, requested_by?: string, only_passes?: string[] }
+// only_passes bypasses the 7-day cache and runs only the listed passes against the existing startup record.
 // Returns immediately with job_id; research runs in background.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -35,37 +36,39 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let body: { company?: string; country?: string; requested_by?: string };
+  let body: { company?: string; country?: string; requested_by?: string; only_passes?: string[] };
   try { body = await req.json(); }
   catch { return json({ error: "Invalid JSON body" }, 400); }
 
-  const { company, country = "IN", requested_by } = body;
+  const { company, country = "IN", requested_by, only_passes } = body;
   if (!company || typeof company !== "string" || company.trim().length < 2) {
     return json({ error: "company field is required (min 2 chars)" }, 400);
   }
 
   const supabase = getSupabaseClient();
 
-  // Return cached result if profiled within 7 days
-  const { data: existing } = await supabase
-    .from("profiling_jobs")
-    .select("id, status, startup_id, created_at")
-    .ilike("company_name", company.trim())
-    .eq("country", country)
-    .eq("status", "completed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Return cached result if profiled within 7 days — skip if only_passes is specified
+  if (!only_passes?.length) {
+    const { data: existing } = await supabase
+      .from("profiling_jobs")
+      .select("id, status, startup_id, created_at")
+      .ilike("company_name", company.trim())
+      .eq("country", country)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (existing) {
-    const age = Date.now() - new Date(existing.created_at).getTime();
-    if (age < 7 * 24 * 60 * 60 * 1000) {
-      return json({
-        job_id:     existing.id,
-        startup_id: existing.startup_id,
-        status:     "completed",
-        cached:     true,
-      });
+    if (existing) {
+      const age = Date.now() - new Date(existing.created_at).getTime();
+      if (age < 7 * 24 * 60 * 60 * 1000) {
+        return json({
+          job_id:     existing.id,
+          startup_id: existing.startup_id,
+          status:     "completed",
+          cached:     true,
+        });
+      }
     }
   }
 
@@ -76,7 +79,7 @@ serve(async (req) => {
     return json({ error: `Failed to create job: ${(e as Error).message}` }, 500);
   }
 
-  EdgeRuntime.waitUntil(runResearch(jobId, company.trim(), country));
+  EdgeRuntime.waitUntil(runResearch(jobId, company.trim(), country, only_passes));
 
   return json({
     job_id:  jobId,
@@ -85,7 +88,7 @@ serve(async (req) => {
   }, 202);
 });
 
-async function runResearch(jobId: string, company: string, country: string): Promise<void> {
+async function runResearch(jobId: string, company: string, country: string, onlyPasses?: string[]): Promise<void> {
   const supabase = getSupabaseClient();
   let startupId: string | undefined;
   let passesStatus: PassesStatus = {};
@@ -93,23 +96,47 @@ async function runResearch(jobId: string, company: string, country: string): Pro
   try {
     await updateJobProgress(supabase, jobId, 2, "running");
 
-    // Resume from a failed job within the last 24 h for the same company
-    const { data: failedJob } = await supabase
-      .from("profiling_jobs")
-      .select("passes_status, startup_id")
-      .ilike("company_name", company)
-      .eq("country", country)
-      .eq("status", "failed")
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (onlyPasses?.length) {
+      // Targeted re-run: load existing startup_id from the most recent job (any status),
+      // then mark all passes except the requested ones as already completed.
+      const { data: prevJob } = await supabase
+        .from("profiling_jobs")
+        .select("startup_id")
+        .ilike("company_name", company)
+        .eq("country", country)
+        .in("status", ["completed", "failed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (failedJob?.passes_status) {
-      passesStatus = failedJob.passes_status as PassesStatus;
-      if (failedJob.startup_id) startupId = failedJob.startup_id;
-      const done = Object.values(passesStatus).filter(p => p.status === "completed").length;
-      console.log(`[${jobId}] Resuming — ${done} passes already completed, startupId=${startupId}`);
+      if (prevJob?.startup_id) startupId = prevJob.startup_id;
+
+      const now = new Date().toISOString();
+      for (const p of ["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin_founder","linkedin_company"] as const) {
+        if (!onlyPasses.includes(p)) {
+          passesStatus[p] = { status: "completed", completed_at: now };
+        }
+      }
+      console.log(`[${jobId}] only_passes mode: running [${onlyPasses.join(",")}], startupId=${startupId}`);
+    } else {
+      // Resume from a failed job within the last 24 h for the same company
+      const { data: failedJob } = await supabase
+        .from("profiling_jobs")
+        .select("passes_status, startup_id")
+        .ilike("company_name", company)
+        .eq("country", country)
+        .eq("status", "failed")
+        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (failedJob?.passes_status) {
+        passesStatus = failedJob.passes_status as PassesStatus;
+        if (failedJob.startup_id) startupId = failedJob.startup_id;
+        const done = Object.values(passesStatus).filter(p => p.status === "completed").length;
+        console.log(`[${jobId}] Resuming — ${done} passes already completed, startupId=${startupId}`);
+      }
     }
 
     const profile = await researchStartup({

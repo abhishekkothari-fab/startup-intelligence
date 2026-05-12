@@ -47,6 +47,7 @@ export interface StartupProfile {
   auto_region: string
   auto_biz_model: string
   auto_entity_pack: string
+  auto_tagline?: string
   revenue_inr_cr?: number
   revenue_fy?: string
   revenue_yoy_pct?: number
@@ -151,12 +152,13 @@ interface PassSpec {
 const PASS_SPECS: Record<PassName, PassSpec> = {
   overview: {
     system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
-{"brand_name":"","legal_name":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"IN","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","team_size":null}
+{"brand_name":"","legal_name":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"IN","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","team_size":null,"auto_tagline":null}
 auto_stage: pre_seed|seed|series_a|series_b_plus|growth
 auto_industry: BFSI|AI_Infra|D2C|Health|Logistics|EdTech_HRTech
 auto_region: metro_t1(Mumbai/Delhi/Bengaluru)|metro_t2(Pune/Hyd/Chennai/Ahmedabad)|non_metro
 auto_biz_model: enterprise_saas|usage|d2c|nbfc|deeptech_ip
 auto_entity_pack: base OR base|saas OR base|d2c|consumer OR base|nbfc|lending
+auto_tagline: one short punchy sentence (max 10 words) describing what the company does — e.g. "India's trust infrastructure company" or "AI-native compliance platform for Indian banks". Do NOT use marketing language like "revolutionizing" — use precise domain terms.
 IMPORTANT: Search specifically for the Indian company. If the name could refer to multiple companies, focus on the Indian startup.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
@@ -170,7 +172,7 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
 Founders: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
-CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP roles held by non-founders. Only include if the person is NOT already captured as a founder. ONLY add entries for people you actually found — never output "not specified", "unknown", or placeholder text as a raw_value. Omit the field entirely if the person was not found.
+CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role, cxo_5_name, cxo_5_role, cxo_6_name, cxo_6_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders. STRICT RULE: only output a cxo_N entry if you found a real name. If you cannot find a person for a slot, do NOT output that field at all — never write "not specified", "unknown", or any placeholder.
 IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
@@ -195,7 +197,9 @@ IMPORTANT: Only return data for the Indian company. Discard any results for same
   },
 
   funding: {
-    system: `Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with the character \`{\` and end with \`}\`. Do NOT write any introductory sentences, narrative text, synthesis, analysis, markdown headers, or code blocks. Output ONLY the raw JSON object — nothing else.
+
+Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
 Search 1: target crunchbase.com or tracxn.com for structured round-by-round data.
 Search 2 (if round details incomplete): target inc42.com or entrackr.com for Indian funding news.
 
@@ -274,44 +278,101 @@ IMPORTANT: Search specifically for the Indian company's products. Discard result
       const siteHint = ctx?.website ? ` site:${new URL(ctx.website).hostname}` : ""
       return `Search: "${co} ${cname}${sector} products solutions features API integrations patents platform${siteHint}" — return products raw_fields JSON for the Indian startup ${co}.`
     },
-    maxTokens: 2000,
-    model: "claude-haiku-4-5-20251001",
+    maxTokens: 3000,
+    maxSearches: 2,
   },
 
   regulatory: {
-    system: `Startup research analyst. Do up to 2 web searches targeting MCA registry sources. Return ONLY valid JSON (null for unknown):
-{"cin":null,"legal_name":null,"raw_fields":[]}
-CIN is exactly 21 characters, e.g. U74999MH2011PTC218253. Format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number].
-Capture in raw_fields (field_pack="regulatory" for all): incorporation_date (YYYY-MM-DD), registered_state, mca_status (active/struck_off/under_liquidation), authorized_capital_cr (in INR crores), paid_up_capital_cr (in INR crores), registered_address.
-Search 1: target zaubacorp.com or tofler.in for the CIN and incorporation details.
-Search 2 (if CIN not found): try mca.gov.in or tracxn or startuptalky for the company.
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do up to 2 web searches targeting MCA registry sources.
+Search 1: target zaubacorp.com or tofler.in for CIN and incorporation details.
+Search 2 (if details incomplete): try mca.gov.in or tofler.in for registered address and capital.
+
+Return this exact JSON structure — raw_fields MUST be populated with every field you find:
+{
+  "cin": "U74900MH2011PTC291275",
+  "legal_name": "Baldor Technologies Private Limited",
+  "raw_fields": [
+    {"field_name":"incorporation_date","field_pack":"regulatory","applicability":"applicable","raw_value":"2011-05-31","data_type":"date","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.95},
+    {"field_name":"registered_state","field_pack":"regulatory","applicability":"applicable","raw_value":"Maharashtra","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.95},
+    {"field_name":"mca_status","field_pack":"regulatory","applicability":"applicable","raw_value":"Active","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.95},
+    {"field_name":"authorized_capital_cr","field_pack":"regulatory","applicability":"applicable","raw_value":"11.59","data_type":"numeric","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.9},
+    {"field_name":"paid_up_capital_cr","field_pack":"regulatory","applicability":"applicable","raw_value":"8.71","data_type":"numeric","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.9},
+    {"field_name":"registered_address","field_pack":"regulatory","applicability":"applicable","raw_value":"8th Floor, Skyline Icon, Andheri-Kurla Road, Marol Andheri East, Mumbai 400059","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.85},
+    {"field_name":"roc","field_pack":"regulatory","applicability":"applicable","raw_value":"RoC-Mumbai","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.9},
+    {"field_name":"last_agm_date","field_pack":"regulatory","applicability":"applicable","raw_value":"2025-09-18","data_type":"date","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.85},
+    {"field_name":"sub_brands","field_pack":"regulatory","applicability":"applicable","raw_value":"IDfy, CrimeCheck, Privy","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.9}
+  ]
+}
+
+CIN format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number] — exactly 21 characters.
 Only return data for the Indian company — discard results for same-named entities elsewhere.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const entity = ctx?.legalName || co
-      return `Search 1: "${entity} CIN site:zaubacorp.com OR site:tofler.in" — find MCA registration details for the legal entity.\nSearch 2 (if CIN not found): "${co} ${cname} incorporation registered" site:mca.gov.in OR site:startuptalky.com — return regulatory JSON for ${co} (legal entity: ${entity}).`
+      return `Search 1: "${entity} CIN incorporation site:zaubacorp.com OR site:tofler.in" — find MCA registration, CIN, incorporation date, registered address, authorized capital, paid-up capital for the legal entity.\nSearch 2 (if address/capital not found): "${entity} registered address capital site:tofler.in OR site:mca.gov.in" — return full regulatory JSON for ${co} (legal entity: ${entity}).`
     },
-    maxTokens: 1500,
+    maxTokens: 2500,
     maxSearches: 2,
   },
 
   signals: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
-{"revenue_inr_cr":null,"revenue_fy":null,"revenue_yoy_pct":null,"net_profit_inr_cr":null,"is_profitable":null,"client_count":null,"raw_fields":[]}
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after. No markdown. No explanation.
 
-Capture in raw_fields (field_pack="signals" for all):
-- latest_news_headline, latest_news_date, award_1 (name and year), partnership_1, expansion_target_market
-- Multi-year revenue history (most recent first): revenue_fy1_year ("FY25"), revenue_fy1_inr_cr ("191"), revenue_fy2_year ("FY24"), revenue_fy2_inr_cr ("144"), revenue_fy3_year, revenue_fy3_inr_cr, revenue_fy4_year, revenue_fy4_inr_cr, revenue_fy5_year, revenue_fy5_inr_cr — only include years for which you found actual data
-- revenue_cagr_5yr_pct: 5-year revenue CAGR as a number string e.g. "54"
-- Named enterprise clients (up to 5): client_1_name, client_1_sector (e.g. "BFSI"), client_2_name, client_2_sector, client_3_name, client_3_sector, client_4_name, client_4_sector, client_5_name, client_5_sector — capture actual named companies, not generic counts
+Startup research analyst. Do up to 2 web searches to find comprehensive financial signals for the specified Indian startup.
+Search 1: target entrackr.com or inc42.com for multi-year revenue, financials, and named clients.
+Search 2 (if revenue history incomplete): target the company's own website or press releases for product details, client names, and volume metrics.
 
-IMPORTANT: Only report financials and news for the Indian company. Discard data from same-named companies elsewhere.`,
+CRITICAL: raw_fields MUST be populated. An empty raw_fields array is WRONG. Populate every field you find evidence for.
+
+Return this exact JSON structure:
+{
+  "revenue_inr_cr": 191,
+  "revenue_fy": "FY25",
+  "revenue_yoy_pct": 31,
+  "net_profit_inr_cr": 7.8,
+  "is_profitable": true,
+  "client_count": 500,
+  "raw_fields": [
+    {"field_name":"revenue_fy1_year","field_pack":"signals","applicability":"applicable","raw_value":"FY25","data_type":"text","source_type":"web","source_url":"https://entrackr.com/2025/10/idfy-fy25","confidence":0.9},
+    {"field_name":"revenue_fy1_inr_cr","field_pack":"signals","applicability":"applicable","raw_value":"191","data_type":"numeric","source_type":"web","source_url":"https://entrackr.com/2025/10/idfy-fy25","confidence":0.9},
+    {"field_name":"revenue_fy2_year","field_pack":"signals","applicability":"applicable","raw_value":"FY24","data_type":"text","source_type":"web","source_url":"https://entrackr.com/2024/10/idfy-fy24","confidence":0.9},
+    {"field_name":"revenue_fy2_inr_cr","field_pack":"signals","applicability":"applicable","raw_value":"144","data_type":"numeric","source_type":"web","source_url":"https://entrackr.com/2024/10/idfy-fy24","confidence":0.9},
+    {"field_name":"revenue_fy3_year","field_pack":"signals","applicability":"applicable","raw_value":"FY23","data_type":"text","source_type":"web","source_url":"https://entrackr.com/2023/10/idfy-fy23","confidence":0.85},
+    {"field_name":"revenue_fy3_inr_cr","field_pack":"signals","applicability":"applicable","raw_value":"118","data_type":"numeric","source_type":"web","source_url":"https://entrackr.com/2023/10/idfy-fy23","confidence":0.85},
+    {"field_name":"revenue_cagr_5yr_pct","field_pack":"signals","applicability":"applicable","raw_value":"54","data_type":"numeric","source_type":"web","source_url":"https://entrackr.com/2025/10/idfy-fy25","confidence":0.85},
+    {"field_name":"client_1_name","field_pack":"signals","applicability":"applicable","raw_value":"HDFC Bank","data_type":"text","source_type":"web","source_url":"https://idfy.com/clients","confidence":0.9},
+    {"field_name":"client_1_sector","field_pack":"signals","applicability":"applicable","raw_value":"BFSI","data_type":"text","source_type":"web","source_url":"https://idfy.com/clients","confidence":0.9},
+    {"field_name":"award_1","field_pack":"signals","applicability":"applicable","raw_value":"Forbes Asia 100 To Watch 2023","data_type":"text","source_type":"web","source_url":"https://forbes.com/lists/asia100towatch","confidence":0.9},
+    {"field_name":"award_2","field_pack":"signals","applicability":"applicable","raw_value":"Deloitte Technology Fast 50 India 2022","data_type":"text","source_type":"web","source_url":"https://deloitte.com","confidence":0.85},
+    {"field_name":"volume_metric","field_pack":"signals","applicability":"applicable","raw_value":"500M+ annual verifications","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.85},
+    {"field_name":"market_share","field_pack":"signals","applicability":"applicable","raw_value":"~60% Video KYC market share India","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.8},
+    {"field_name":"latest_news_headline","field_pack":"signals","applicability":"applicable","raw_value":"IDfy raises Series F of $53M led by Neo Asset Management","data_type":"text","source_type":"web","source_url":"https://inc42.com/buzz/idfy-series-f","confidence":0.95},
+    {"field_name":"latest_news_date","field_pack":"signals","applicability":"applicable","raw_value":"2026-02","data_type":"text","source_type":"web","source_url":"https://inc42.com/buzz/idfy-series-f","confidence":0.95},
+    {"field_name":"ipo_signal","field_pack":"signals","applicability":"applicable","raw_value":"Blume Ventures called IDfy 'IPO-ready' at Series F — ₹256 Cr secondary component","data_type":"text","source_type":"web","source_url":"https://inc42.com/buzz/idfy-series-f","confidence":0.9},
+    {"field_name":"key_quote_1_text","field_pack":"signals","applicability":"applicable","raw_value":"We are profitable and cashflow positive. We do not need cash to run the core business.","data_type":"text","source_type":"web","source_url":"https://inc42.com/buzz/idfy-series-f","confidence":0.9},
+    {"field_name":"key_quote_1_author","field_pack":"signals","applicability":"applicable","raw_value":"Ashok Hariharan, Co-Founder & CEO","data_type":"text","source_type":"web","source_url":"https://inc42.com/buzz/idfy-series-f","confidence":0.9}
+  ]
+}
+
+Required raw_fields — populate ALL you find evidence for (field_pack="signals" for all):
+FINANCIALS: revenue_fy1_year through revenue_fy6_year (label e.g. "FY25"), revenue_fy1_inr_cr through revenue_fy6_inr_cr (number as string), revenue_cagr_5yr_pct, fy_next_target_inr_cr (next year revenue target if mentioned)
+CLIENTS: client_1_name through client_5_name, client_1_sector through client_5_sector (sector e.g. "BFSI", "Insurance", "E-commerce", "Gaming")
+AWARDS: award_1 through award_5 (name + year in one string)
+SIGNALS: latest_news_headline, latest_news_date (YYYY-MM), expansion_target_market, volume_metric (operational scale e.g. "500M verifications/yr"), market_share (e.g. "60% Video KYC India"), ipo_signal (IPO/pre-IPO language if any)
+PARTNERSHIPS (structured — capture all you find, up to 8): partnership_1_partner through partnership_8_partner (company/org name), partnership_1_category through partnership_8_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_8_usecase (what IDfy does for them), partnership_1_signal through partnership_8_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible.
+QUOTES: key_quote_1_text (most insightful founder/investor quote found), key_quote_1_author, key_quote_2_text, key_quote_2_author
+
+Only include years/clients/awards you actually found. Do not fabricate data.
+IMPORTANT: Only report data for the Indian company. Discard same-named companies elsewhere.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search: "${co} ${cname}${sector} revenue financials ARR growth clients customers enterprise news 2024 2025" — return signals JSON for the Indian company ${co}.`
+      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2 (if client names or volume metrics not found): "${co} ${cname} customers clients enterprise HDFC Amazon annual verifications market share site:${co.toLowerCase().replace(/\s+/g,"")}.com OR site:tracxn.com"\nReturn complete signals JSON for the Indian company ${co}.`
     },
-    maxTokens: 2500,
+    maxSearches: 2,
+    maxTokens: 5000,
   },
 
   youtube: {
@@ -782,6 +843,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     auto_region:           merged.auto_region         || "metro_t1",
     auto_biz_model:        merged.auto_biz_model      || "d2c",
     auto_entity_pack:      merged.auto_entity_pack    || "base",
+    auto_tagline:          merged.auto_tagline,
     revenue_inr_cr:        merged.revenue_inr_cr,
     revenue_fy:            merged.revenue_fy,
     revenue_yoy_pct:       merged.revenue_yoy_pct,

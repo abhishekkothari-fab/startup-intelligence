@@ -195,8 +195,8 @@ async function runResearch(jobId: string, company: string, country: string, only
       },
     });
 
-    // Write scores after all passes complete
-    if (startupId && profile.scores) {
+    // Write scores only on full runs — only_passes has incomplete merged data
+    if (startupId && profile.scores && !onlyPasses?.length) {
       await insertScores(supabase, startupId, profile);
     }
 

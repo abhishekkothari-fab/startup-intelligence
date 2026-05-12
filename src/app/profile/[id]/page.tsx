@@ -788,7 +788,7 @@ export default function ProfilePage({
                 <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>{str(s.glassdoor_reviews)} reviews</div>
               </div>
               <div>
-                {(s.glassdoor_recommend || s.glassdoor_positive_outlook_pct || s.glassdoor_interview_positive_pct) && (
+                {!!(s.glassdoor_recommend || s.glassdoor_positive_outlook_pct || s.glassdoor_interview_positive_pct) && (
                   <div style={{ display: "flex", gap: "1.25rem", marginBottom: "1rem", flexWrap: "wrap" }}>
                     {s.glassdoor_recommend && <span style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>{str(s.glassdoor_recommend)}% Recommend</span>}
                     {s.glassdoor_positive_outlook_pct && <span style={{ fontSize: 12, color: "var(--text-m)" }}>{str(s.glassdoor_positive_outlook_pct)}% Positive Outlook</span>}

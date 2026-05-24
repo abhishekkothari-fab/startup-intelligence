@@ -1,11 +1,11 @@
-// supabase/functions/profile-startup/index.ts  v2
+// supabase/functions/profile-startup/index.ts  v3
 // POST /functions/v1/profile-startup
 // Body: { company: string, country?: string, requested_by?: string, only_passes?: string[] }
-// only_passes bypasses the 7-day cache and runs only the listed passes against the existing startup record.
-// Returns immediately with job_id; research runs in background.
+// Internal self-chain params (do not use externally): { job_id: string, _wave: 1|2|3 }
+// Returns immediately with job_id; research runs in background across up to 3 chained invocations.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { researchStartup, PASS_PROGRESS, type PassesStatus } from "../_shared/research.ts";
+import { researchStartup, PASS_PROGRESS, type PassesStatus, type StartupProfile } from "../_shared/research.ts";
 import {
   getSupabaseClient,
   createJob,
@@ -25,6 +25,14 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Each wave runs in its own 150s EdgeRuntime window, bypassing the free-plan limit.
+const WAVE_PASSES: Record<number, string[]> = {
+  1: ["overview", "founders", "glassdoor"],
+  2: ["funding", "products", "regulatory", "youtube"],
+  3: ["signals", "linkedin_founder", "linkedin_company"],
+}
+const TOTAL_WAVES = 3
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -36,18 +44,35 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let body: { company?: string; country?: string; requested_by?: string; only_passes?: string[] };
+  let body: {
+    company?: string;
+    country?: string;
+    requested_by?: string;
+    only_passes?: string[];
+    job_id?: string;
+    _wave?: number;
+  };
   try { body = await req.json(); }
   catch { return json({ error: "Invalid JSON body" }, 400); }
 
-  const { company, country = "IN", requested_by, only_passes } = body;
+  const { company, country = "IN", requested_by, only_passes, job_id: existingJobId, _wave } = body;
   if (!company || typeof company !== "string" || company.trim().length < 2) {
     return json({ error: "company field is required (min 2 chars)" }, 400);
   }
 
   const supabase = getSupabaseClient();
 
-  // Return cached result if profiled within 7 days — skip if only_passes is specified
+  // ── Internal wave call ──────────────────────────────────────────────────────
+  // Dispatched by the previous wave; reuses existing job, skips cache check.
+  if (_wave !== undefined && existingJobId) {
+    const wavePasses = WAVE_PASSES[_wave]
+    if (!wavePasses) return json({ error: `Unknown wave ${_wave}` }, 400);
+    console.log(`[wave ${_wave}] company=${company} job=${existingJobId}`)
+    EdgeRuntime.waitUntil(runResearch(existingJobId, company.trim(), country, wavePasses, _wave));
+    return json({ job_id: existingJobId, status: "running" }, 202);
+  }
+
+  // ── Return cached result if profiled within 7 days ──────────────────────────
   if (!only_passes?.length) {
     const { data: existing } = await supabase
       .from("profiling_jobs")
@@ -79,7 +104,13 @@ serve(async (req) => {
     return json({ error: `Failed to create job: ${(e as Error).message}` }, 500);
   }
 
-  EdgeRuntime.waitUntil(runResearch(jobId, company.trim(), country, only_passes));
+  if (only_passes?.length) {
+    // User-facing targeted re-run: run immediately in this invocation.
+    EdgeRuntime.waitUntil(runResearch(jobId, company.trim(), country, only_passes));
+  } else {
+    // Fresh full run: kick off wave 1 via self-call (each wave gets a fresh 150s window).
+    EdgeRuntime.waitUntil(fireWave(1, jobId, company.trim(), country));
+  }
 
   return json({
     job_id:  jobId,
@@ -88,38 +119,79 @@ serve(async (req) => {
   }, 202);
 });
 
-async function runResearch(jobId: string, company: string, country: string, onlyPasses?: string[]): Promise<void> {
+async function fireWave(wave: number, jobId: string, company: string, country: string): Promise<void> {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/profile-startup`
+  const key = Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ company, country, job_id: jobId, _wave: wave }),
+    })
+    console.log(`[${jobId}] Fired wave ${wave} → HTTP ${res.status}`)
+  } catch (e) {
+    console.error(`[${jobId}] Failed to fire wave ${wave}: ${e}`)
+  }
+}
+
+async function runResearch(
+  jobId: string,
+  company: string,
+  country: string,
+  onlyPasses?: string[],
+  waveNum?: number
+): Promise<void> {
   const supabase = getSupabaseClient();
   let startupId: string | undefined;
   let passesStatus: PassesStatus = {};
+  let initialMerged: Partial<StartupProfile> = {};
+  // Tracks passes pre-marked in-memory so the batch runner skips them.
+  // Must never be written to DB — future waves would see them as completed and skip their passes.
+  const preMarked = new Set<string>();
+
+  // Strip pre-marks before any DB write so future waves aren't poisoned.
+  const forDB = (s: PassesStatus): PassesStatus =>
+    preMarked.size === 0 ? s : Object.fromEntries(Object.entries(s).filter(([p]) => !preMarked.has(p)));
 
   try {
     await updateJobProgress(supabase, jobId, 2, "running");
 
     if (onlyPasses?.length) {
-      // Targeted re-run: load existing startup_id from the most recent job (any status),
-      // then mark all passes except the requested ones as already completed.
-      const { data: prevJob } = await supabase
-        .from("profiling_jobs")
-        .select("startup_id")
-        .ilike("company_name", company)
-        .eq("country", country)
-        .in("status", ["completed", "failed"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      if (waveNum !== undefined) {
+        // Internal wave call: get startup_id and passes_status from this job record.
+        const { data: thisJob } = await supabase
+          .from("profiling_jobs")
+          .select("startup_id, passes_status")
+          .eq("id", jobId)
+          .single();
+        if (thisJob?.startup_id) startupId = thisJob.startup_id;
+        if (thisJob?.passes_status) passesStatus = thisJob.passes_status as PassesStatus;
+      } else {
+        // User-facing only_passes: get startup_id from most recent completed/failed job.
+        const { data: prevJob } = await supabase
+          .from("profiling_jobs")
+          .select("startup_id")
+          .ilike("company_name", company)
+          .eq("country", country)
+          .in("status", ["completed", "failed"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (prevJob?.startup_id) startupId = prevJob.startup_id;
+      }
 
-      if (prevJob?.startup_id) startupId = prevJob.startup_id;
-
+      // Pre-mark all non-requested passes as completed so the batch runner skips them.
+      // Only mark passes not already present in DB state (from prior waves).
       const now = new Date().toISOString();
       for (const p of ["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin_founder","linkedin_company"] as const) {
-        if (!onlyPasses.includes(p)) {
+        if (!onlyPasses.includes(p) && !passesStatus[p]) {
           passesStatus[p] = { status: "completed", completed_at: now };
+          preMarked.add(p);
         }
       }
-      console.log(`[${jobId}] only_passes mode: running [${onlyPasses.join(",")}], startupId=${startupId}`);
+      console.log(`[${jobId}] wave=${waveNum ?? "user"} passes=[${onlyPasses.join(",")}] startupId=${startupId}`);
     } else {
-      // Resume from a failed job within the last 24 h for the same company
+      // Resume from a failed job within the last 24 h for the same company.
       const { data: failedJob } = await supabase
         .from("profiling_jobs")
         .select("passes_status, startup_id")
@@ -139,11 +211,32 @@ async function runResearch(jobId: string, company: string, country: string, only
       }
     }
 
+    // Seed initialMerged from DB so computeScores has full data on partial/wave runs.
+    if (startupId) {
+      const [rawRes, stRes] = await Promise.all([
+        supabase.from("raw_fields")
+          .select("field_name,field_pack,applicability,applicability_reason,raw_value,data_type,source_type,source_url,confidence")
+          .eq("startup_id", startupId),
+        supabase.from("startups")
+          .select("auto_stage,auto_industry,auto_industry_sub,total_raised_usd_m,revenue_inr_cr,revenue_fy,is_profitable,team_size,client_count,glassdoor_rating,founded_date")
+          .eq("id", startupId)
+          .single(),
+      ]);
+      if (rawRes.data?.length) {
+        initialMerged.raw_fields = rawRes.data as StartupProfile["raw_fields"];
+      }
+      if (stRes.data) {
+        Object.assign(initialMerged, stRes.data);
+      }
+      console.log(`[${jobId}] Seeded initialMerged from DB: ${rawRes.data?.length ?? 0} raw_fields`);
+    }
+
     const profile = await researchStartup({
       company,
       country,
       jobId,
       existingPassesStatus: passesStatus,
+      initialMerged,
 
       onProgress: async (pct, note) => {
         console.log(`[${jobId}] ${pct}% — ${note}`);
@@ -152,7 +245,7 @@ async function runResearch(jobId: string, company: string, country: string, only
 
       onPassStatusUpdate: async (updatedStatus) => {
         passesStatus = updatedStatus;
-        await updatePassStatus(supabase, jobId, updatedStatus);
+        await updatePassStatus(supabase, jobId, forDB(updatedStatus));
       },
 
       onPassComplete: async (passName, partial, updatedStatus) => {
@@ -160,56 +253,64 @@ async function runResearch(jobId: string, company: string, country: string, only
 
         try {
           if (!startupId && passName === "overview") {
-            // Create startup on overview completion; fall back to requested company name
-            // if Claude returned null for brand_name (e.g. web search gave poor results)
             startupId = await writeStartupCore(
               supabase,
               { ...partial, brand_name: partial.brand_name || company, hq_country: partial.hq_country || country },
               jobId
             );
             console.log(`[${jobId}] Startup created: ${startupId}`);
-            // Also write any signals that came with the first pass (e.g. mock mode)
+            await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
             if (partial.raw_fields?.length)  await appendRawFields(supabase, startupId, partial.raw_fields);
             if (partial.youtube?.length)     await appendYouTubeSignals(supabase, startupId, partial.youtube);
             if (partial.linkedin?.length)    await appendLinkedInSignals(supabase, startupId, partial.linkedin);
-            await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
           } else if (startupId) {
-            // Subsequent passes — update in place and append signals
             await writeStartupPartial(supabase, startupId, partial);
+            await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
             if (partial.raw_fields?.length)  await appendRawFields(supabase, startupId, partial.raw_fields);
             if (partial.youtube?.length)     await appendYouTubeSignals(supabase, startupId, partial.youtube);
             if (partial.linkedin?.length)    await appendLinkedInSignals(supabase, startupId, partial.linkedin);
-            await updateJobProgress(supabase, jobId, PASS_PROGRESS[passName], "running", startupId);
           }
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.error(`[${jobId}] Pass ${passName} DB write FAILED: ${msg}`);
-          // Surface DB errors into passes_status so they're visible without logs
           updatedStatus[passName] = {
             ...updatedStatus[passName],
             error: `DB write failed: ${msg}`,
           };
         }
 
-        await updatePassStatus(supabase, jobId, updatedStatus);
+        await updatePassStatus(supabase, jobId, forDB(updatedStatus));
       },
     });
 
-    // Write scores only on full runs — only_passes has incomplete merged data
-    if (startupId && profile.scores && !onlyPasses?.length) {
-      await insertScores(supabase, startupId, profile);
-    }
+    const isLastWave = waveNum === undefined || waveNum === TOTAL_WAVES
 
-    await updateJobProgress(supabase, jobId, 100, "completed", startupId);
-    console.log(`[${jobId}] ✓ Completed. Startup ID: ${startupId}`);
+    if (isLastWave) {
+      // Write scores for full runs and the final wave (wave 3 seeds all data from DB).
+      if (startupId && profile.scores && (waveNum === TOTAL_WAVES || !onlyPasses?.length)) {
+        await insertScores(supabase, startupId, profile);
+      }
+      await updateJobProgress(supabase, jobId, 100, "completed", startupId);
+      console.log(`[${jobId}] ✓ Completed. Startup ID: ${startupId}`);
+    } else {
+      // Hand off to the next wave.
+      console.log(`[${jobId}] Wave ${waveNum} done → firing wave ${waveNum! + 1}`);
+      await fireWave(waveNum! + 1, jobId, company, country);
+    }
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[${jobId}] Research failed:`, msg);
-    await updateJobProgress(supabase, jobId, 0, "failed", startupId, msg);
-    // Persist passes_status so next attempt can resume
+    const isLastWave = waveNum === undefined || waveNum === TOTAL_WAVES
+    if (isLastWave) {
+      await updateJobProgress(supabase, jobId, 0, "failed", startupId, msg);
+    } else {
+      // Fire next wave even on failure so partial data keeps accumulating.
+      console.log(`[${jobId}] Wave ${waveNum} errored, firing wave ${waveNum! + 1} anyway`);
+      await fireWave(waveNum! + 1, jobId, company, country);
+    }
     if (Object.keys(passesStatus).length > 0) {
-      await updatePassStatus(supabase, jobId, passesStatus);
+      await updatePassStatus(supabase, jobId, forDB(passesStatus));
     }
   }
 }

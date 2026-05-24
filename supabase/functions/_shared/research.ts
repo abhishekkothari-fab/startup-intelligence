@@ -5,6 +5,8 @@ export type PassesStatus = Record<string, {
   status: PassStatus
   completed_at?: string
   error?: string
+  tokens_in?: number
+  tokens_out?: number
 }>
 
 export const PASS_NAMES = [
@@ -31,6 +33,7 @@ export interface ResearchRequest {
   ) => Promise<void>
   onPassStatusUpdate?: (passesStatus: PassesStatus) => Promise<void>
   existingPassesStatus?: PassesStatus
+  initialMerged?: Partial<StartupProfile>
 }
 
 export interface StartupProfile {
@@ -168,22 +171,27 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
   },
 
   founders: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
-Founders: founder_1_name, founder_1_education (IIT/IIM/tier1/other), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_2_name (if exists), founder_2_education, advisor_count (number), notable_advisors.
-CXO / non-founder C-suite: cxo_1_name, cxo_1_role, cxo_2_name, cxo_2_role, cxo_3_name, cxo_3_role, cxo_4_name, cxo_4_role, cxo_5_name, cxo_5_role, cxo_6_name, cxo_6_role — capture CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders. STRICT RULE: only output a cxo_N entry if you found a real name. If you cannot find a person for a slot, do NOT output that field at all — never write "not specified", "unknown", or any placeholder.
+Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_* and founder_3_* if they exist.
+advisor_count (number), notable_advisors (comma-separated names).
+CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). STRICT RULE: only output a cxo_N entry if you found a real name. Never write "not specified", "unknown", or any placeholder. If background is unknown, omit cxo_N_background entirely.
 IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} founders CEO CTO CPO COO CFO executive leadership team C-suite background education" — return founders and CXO raw_fields JSON for the Indian startup ${co}.`
     },
-    maxTokens: 2500,
+    maxTokens: 5000,
     model: "claude-haiku-4-5-20251001",
   },
 
   glassdoor: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_career_opp":null,"glassdoor_positive_outlook_pct":null,"glassdoor_interview_positive_pct":null,"glassdoor_themes":null}
 glassdoor_rating: float (overall). glassdoor_reviews: int (total count). glassdoor_recommend: int (% who recommend). glassdoor_wlb: float (work-life balance sub-score). glassdoor_culture: float (culture & values sub-score). glassdoor_career_opp: float (career opportunities sub-score). glassdoor_positive_outlook_pct: int (% positive business outlook). glassdoor_interview_positive_pct: int (% positive interview experience). glassdoor_themes: CSV of 3-5 culture themes.
 Extract from SERP snippets only — do NOT visit Glassdoor directly.
@@ -248,12 +256,14 @@ Only add rounds that you actually found in search results. Add as many rounds as
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
       return `Search: "${co} ${cname}${sector} funding rounds investors site:crunchbase.com OR site:tracxn.com OR site:inc42.com OR site:entrackr.com"\nReturn complete round-by-round funding history and investor list as JSON for the Indian company ${co}.`
     },
-    maxTokens: 5000,
+    maxTokens: 7000,
     maxSearches: 2,
   },
 
   products: {
-    system: `Startup research analyst. Do exactly 1 web search targeting the company's own website or product pages. You MUST return a JSON object regardless of search results.
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search targeting the company's own website or product pages. You MUST return a JSON object regardless of search results.
 Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"products","applicability":"applicable","raw_value":"","source_type":"web","source_url":"https://actual-url-found.com","confidence":0.85}]}
 Set source_url to the actual page URL where data was found — never null.
 
@@ -302,11 +312,27 @@ Return this exact JSON structure — raw_fields MUST be populated with every fie
     {"field_name":"registered_address","field_pack":"regulatory","applicability":"applicable","raw_value":"8th Floor, Skyline Icon, Andheri-Kurla Road, Marol Andheri East, Mumbai 400059","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.85},
     {"field_name":"roc","field_pack":"regulatory","applicability":"applicable","raw_value":"RoC-Mumbai","data_type":"text","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.9},
     {"field_name":"last_agm_date","field_pack":"regulatory","applicability":"applicable","raw_value":"2025-09-18","data_type":"date","source_type":"web","source_url":"https://www.zaubacorp.com/company/BALDOR-TECHNOLOGIES-PRIVATE-LIMITED/U74900MH2011PTC291275","confidence":0.85},
-    {"field_name":"sub_brands","field_pack":"regulatory","applicability":"applicable","raw_value":"IDfy, CrimeCheck, Privy","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.9}
+    {"field_name":"entity_1_name","field_pack":"regulatory","applicability":"applicable","raw_value":"IDfy","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.95},
+    {"field_name":"entity_1_type","field_pack":"regulatory","applicability":"applicable","raw_value":"brand","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.95},
+    {"field_name":"entity_1_description","field_pack":"regulatory","applicability":"applicable","raw_value":"Core identity verification and KYC platform","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.9},
+    {"field_name":"entity_2_name","field_pack":"regulatory","applicability":"applicable","raw_value":"CrimeCheck","data_type":"text","source_type":"web","source_url":"https://crimecheck.idfy.com","confidence":0.9},
+    {"field_name":"entity_2_type","field_pack":"regulatory","applicability":"applicable","raw_value":"brand","data_type":"text","source_type":"web","source_url":"https://crimecheck.idfy.com","confidence":0.9},
+    {"field_name":"entity_2_description","field_pack":"regulatory","applicability":"applicable","raw_value":"Employee background screening and verification brand","data_type":"text","source_type":"web","source_url":"https://crimecheck.idfy.com","confidence":0.85},
+    {"field_name":"entity_3_name","field_pack":"regulatory","applicability":"applicable","raw_value":"Privy","data_type":"text","source_type":"web","source_url":"https://privy.idfy.com","confidence":0.85},
+    {"field_name":"entity_3_type","field_pack":"regulatory","applicability":"applicable","raw_value":"brand","data_type":"text","source_type":"web","source_url":"https://privy.idfy.com","confidence":0.85},
+    {"field_name":"entity_3_description","field_pack":"regulatory","applicability":"applicable","raw_value":"Consumer-facing privacy and consent management product","data_type":"text","source_type":"web","source_url":"https://privy.idfy.com","confidence":0.8}
   ]
 }
 
 CIN format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number] — exactly 21 characters.
+Entity fields to capture (field_pack="regulatory"): entity_1_name through entity_6_name — the operating and legal corporate structure only. For each: entity_N_type and entity_N_description (one sentence on what this entity does or its role in the group). Only capture entities you actually found evidence for. STRICT: never output placeholder names.
+entity_N_type allowed values — pick exactly one:
+- brand: a consumer/product brand operated by the legal entity (e.g. a product name or go-to-market brand distinct from the legal name)
+- subsidiary: a legally separate company majority-owned by this startup
+- holding_co: a holding or parent company that owns/controls the startup (majority stake, operational control) — NOT investors or VCs
+- associate: a joint venture or minority-stake affiliate
+- product_brand: a named product line or sub-brand
+CRITICAL: investors, VCs, PE funds, angel investors, and financial shareholders are NEVER entities. Do not capture them under any type. Only capture the startup's own legal entities, brands, subsidiaries, and the holding company that directly owns it (if any).
 Only return data for the Indian company — discard results for same-named entities elsewhere.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
@@ -320,9 +346,8 @@ Only return data for the Indian company — discard results for same-named entit
   signals: {
     system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after. No markdown. No explanation.
 
-Startup research analyst. Do up to 2 web searches to find comprehensive financial signals for the specified Indian startup.
+Startup research analyst. Do 1 web search to find comprehensive financial signals for the specified Indian startup.
 Search 1: target entrackr.com or inc42.com for multi-year revenue, financials, and named clients.
-Search 2 (if revenue history incomplete): target the company's own website or press releases for product details, client names, and volume metrics.
 
 CRITICAL: raw_fields MUST be populated. An empty raw_fields array is WRONG. Populate every field you find evidence for.
 
@@ -369,14 +394,16 @@ IMPORTANT: Only report data for the Indian company. Discard same-named companies
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2 (if client names or volume metrics not found): "${co} ${cname} customers clients enterprise HDFC Amazon annual verifications market share site:${co.toLowerCase().replace(/\s+/g,"")}.com OR site:tracxn.com"\nReturn complete signals JSON for the Indian company ${co}.`
+      return `Search: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nReturn complete signals JSON for the Indian company ${co}.`
     },
-    maxSearches: 2,
-    maxTokens: 5000,
+    maxSearches: 1,
+    maxTokens: 7000,
   },
 
   youtube: {
-    system: `Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"youtube":[{"video_title":"","video_url":null,"published_date":null,"video_type":"","channel_name":null,"is_own_channel":false,"key_quote":null,"confidence":0.9}]}
 video_type: founder_on_camera|podcast_feature|product_demo|culture_content|news_coverage
 Capture up to 8 videos. Only include videos about the Indian company.`,
@@ -389,7 +416,9 @@ Capture up to 8 videos. Only include videos about the Indian company.`,
   },
 
   linkedin_founder: {
-    system: `Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
 {"linkedin":[{"pass":8,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: founder_traction_claim|hiring_signal|partnership_announcement|product_launch|culture_post
 Capture up to 4 posts written BY the founder on LinkedIn. Summarise each post_text in 1–2 sentences with any numbers or claims. Only include posts about the Indian company.`,
@@ -397,12 +426,14 @@ Capture up to 4 posts written BY the founder on LinkedIn. Summarise each post_te
       const founderQuery = ctx?.founderName ? `"${ctx.founderName}" ${co}` : `"${co}" founder`
       return `Search: "${founderQuery} site:linkedin.com" — return linkedin signals JSON for posts written by the founder of the Indian company ${co}.`
     },
-    maxTokens: 2000,
+    maxTokens: 1200,
     maxSearches: 1,
   },
 
   linkedin_company: {
-    system: `Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
+    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+
+Startup research analyst. Do exactly 1 web search on LinkedIn. Return ONLY valid JSON:
 {"linkedin":[{"pass":9,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: investor_validation|hiring_signal|partnership_announcement|product_launch|culture_post
 Capture up to 4 posts from LinkedIn SERP snippets — investor posts, company page announcements, third-party mentions. Summarise each post_text in 1–2 sentences with any numbers or claims. Only include posts about the Indian company.`,
@@ -410,23 +441,27 @@ Capture up to 4 posts from LinkedIn SERP snippets — investor posts, company pa
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} site:linkedin.com investment partnership announcement hiring 2024 2025" — return linkedin signals JSON for third-party mentions of the Indian company ${co}.`
     },
-    maxTokens: 2000,
+    maxTokens: 1200,
     maxSearches: 1,
   },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-// Promise.race-based timeout — works even when AbortController can't cancel in-flight fetches.
-// Returns null on timeout so the pass is marked failed and research continues.
-function raceTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+// Promise.race-based timeout. Aborts the controller on timeout so in-flight fetches are cancelled.
+function raceTimeout<T>(promise: Promise<T>, ms: number, controller?: AbortController): Promise<T | null> {
   return Promise.race([
     promise,
-    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+    new Promise<null>(resolve => setTimeout(() => {
+      controller?.abort()
+      resolve(null)
+    }, ms)),
   ])
 }
 
 function parseJson(text: string): Record<string, unknown> | null {
+  text = text.replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1")
+  text = text.replace(/```(?:json)?\s*/gi, "").replace(/```\s*$/g, "")
   const s = text.indexOf("{")
   const e = text.lastIndexOf("}")
   if (s === -1 || e === -1) return null
@@ -453,8 +488,6 @@ function mergePartial(
 
 // ── Claude API call ───────────────────────────────────────────────
 
-// Uses AbortSignal.timeout() — a spec-native fetch cancellation that works
-// at the runtime level rather than relying on JS event-loop timers.
 function timedFetch(url: string, options: RequestInit, ms: number): Promise<Response> {
   return fetch(url, { ...options, signal: AbortSignal.timeout(ms) })
 }
@@ -466,8 +499,9 @@ async function claudeCall(
   maxTokens: number,
   maxSearches: number,
   deadlineMs: number,   // absolute wall-clock deadline (Date.now()-based)
-  model = "claude-sonnet-4-6"
-): Promise<string | null> {
+  model = "claude-sonnet-4-6",
+  abortSignal?: AbortSignal
+): Promise<{ text: string; tokensIn: number; tokensOut: number } | null> {
   const messages: Array<{ role: string; content: unknown }> = [
     { role: "user", content: userMsg }
   ]
@@ -480,9 +514,15 @@ async function claudeCall(
     bodyBase.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: maxSearches }]
   }
 
+  let totalTokensIn = 0
+  let totalTokensOut = 0
+
   for (let i = 0; i < 5; i++) {
-    // Per-fetch budget: remaining wall-clock minus 8s buffer, capped at 50s per call.
-    const perFetchMs = Math.max(Math.min(50_000, deadlineMs - Date.now() - 8_000), 5_000)
+    if (abortSignal?.aborted) return null
+
+    // Per-fetch budget: remaining wall-clock minus 8s buffer, capped at 110s per call.
+    // 110s accommodates 7000-token synthesis even at ~64 tok/s; waves give each batch a fresh 140s window.
+    const perFetchMs = Math.max(Math.min(110_000, deadlineMs - Date.now() - 8_000), 5_000)
 
     let res: Response
     try {
@@ -514,21 +554,26 @@ async function claudeCall(
     if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`)
 
     const data = await res.json()
+    totalTokensIn += data.usage?.input_tokens ?? 0
+    totalTokensOut += data.usage?.output_tokens ?? 0
 
     if (data.stop_reason === "end_turn" || data.stop_reason === "stop_sequence") {
-      return (data.content as { type: string; text?: string }[])
+      console.log(`[tokens] model=${model} in=${totalTokensIn} out=${totalTokensOut} limit=${maxTokens}`)
+      const text = (data.content as { type: string; text?: string }[])
         .filter(b => b.type === "text")
         .map(b => b.text || "")
         .join("")
+      return { text, tokensIn: totalTokensIn, tokensOut: totalTokensOut }
     }
 
     // Extract partial text even on max_tokens — JSON may still be parseable
     if (data.stop_reason === "max_tokens") {
+      console.log(`[tokens] TRUNCATED model=${model} in=${totalTokensIn} out=${totalTokensOut} limit=${maxTokens}`)
       const partial = (data.content as { type: string; text?: string }[])
         .filter(b => b.type === "text")
         .map(b => b.text || "")
         .join("")
-      if (partial.trim()) return partial
+      if (partial.trim()) return { text: partial, tokensIn: totalTokensIn, tokensOut: totalTokensOut }
     }
 
     if (data.stop_reason === "tool_use") {
@@ -548,7 +593,14 @@ async function claudeCall(
 // ── Programmatic scoring (no API call — runs in <1ms) ────────────
 
 function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile> {
-  const stage = merged.auto_stage || "seed"
+  // Correct stage misclassification based on total funding raised.
+  // The overview pass may under-classify a late-stage company on sparse SERP data.
+  let stage = merged.auto_stage || "seed"
+  const raisedUsd = merged.total_raised_usd_m || 0
+  if (raisedUsd >= 100 && (stage === "pre_seed" || stage === "seed" || stage === "series_a")) stage = "series_b_plus"
+  else if (raisedUsd >= 20 && (stage === "pre_seed" || stage === "seed")) stage = "series_a"
+  else if (raisedUsd >= 5 && stage === "pre_seed") stage = "seed"
+
   const WEIGHTS: Record<string, number[]> = {
     pre_seed:      [0.35, 0.05, 0.15, 0.20, 0.15, 0.10],
     seed:          [0.25, 0.20, 0.20, 0.20, 0.10, 0.05],
@@ -583,15 +635,17 @@ function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile>
   else if (merged.client_count && merged.client_count > 100) dimTraction = 20
   if (merged.is_profitable) dimTraction = Math.min(100, dimTraction + 10)
 
-  // dim_capital (0-100)
+  // dim_capital (0-100) — tier from raw_fields first, then fall back to total raised
   let dimCapital = 10
   const tier = fm["investor_1_tier"] || ""
   if (tier === "tier1") dimCapital = 90
   else if (tier === "tier2") dimCapital = 75
   else if (tier === "angel") dimCapital = 45
   else if (tier === "govt") dimCapital = 35
-  else if (merged.total_raised_usd_m && merged.total_raised_usd_m >= 10) dimCapital = 55
-  else if (merged.total_raised_usd_m && merged.total_raised_usd_m > 0) dimCapital = 35
+  else if (raisedUsd >= 100) dimCapital = 85
+  else if (raisedUsd >= 30) dimCapital = 70
+  else if (raisedUsd >= 10) dimCapital = 55
+  else if (raisedUsd > 0) dimCapital = 35
 
   // dim_product (0-100)
   let dimProduct = 30
@@ -604,10 +658,10 @@ function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile>
   // dim_market (0-100) — default moderate; most Indian SaaS/BFSI/D2C have large TAMs
   const dimMarket = 55
 
-  // dim_momentum (0-100)
+  // dim_momentum (0-100) — check both flat partnership_1 and structured partnership_1_partner
   let dimMomentum = 15
   if (fm["award_1"]) dimMomentum += 20
-  if (fm["partnership_1"]) dimMomentum += 15
+  if (fm["partnership_1"] || fm["partnership_1_partner"]) dimMomentum += 15
   if (fm["latest_news_headline"]) dimMomentum += 10
 
   const composite = Math.round(
@@ -615,12 +669,84 @@ function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile>
     dimProduct * wp + dimMarket * wm + dimMomentum * wmo
   )
 
+  // Dynamic applicable fields: count raw_fields that are applicable or unknown, plus key scalars
+  const allRaw = merged.raw_fields || []
+  const fieldsNotApplicable = allRaw.filter(f => f.applicability === "not_applicable").length
+  const fieldsApplicable = Math.max(20, allRaw.length - fieldsNotApplicable + 4)
   const fieldsCollected = Object.keys(fm).length +
-    (rev ? 1 : 0) + (merged.total_raised_usd_m ? 1 : 0) +
+    (rev ? 1 : 0) + (raisedUsd ? 1 : 0) +
     (merged.glassdoor_rating ? 1 : 0) + (merged.team_size ? 1 : 0)
-  const fieldsApplicable = 20
-  const fieldsUnknown = Math.max(0, fieldsApplicable - fieldsCollected)
+  const fieldsUnknown = Math.max(0, fieldsApplicable - fieldsCollected - fieldsNotApplicable)
   const dq = Math.round(Math.min(95, (fieldsCollected / fieldsApplicable) * 100))
+
+  // ── Universal Ratios ──────────────────────────────────────────────
+  const foundedMs = merged.founded_date ? new Date(merged.founded_date).getTime() : 0
+  const monthsOp  = foundedMs > 0 ? Math.max(1, (Date.now() - foundedMs) / (30.44 * 24 * 3600 * 1000)) : 0
+  const raisedInr = raisedUsd * 83  // approx INR Cr
+
+  let productSurface = 0
+  for (let i = 1; i <= 6; i++) { if (fm[`product_${i}_name`]) productSurface++ }
+
+  // Revenue CAGR from multi-year raw_fields (best available window, up to 3yr)
+  const fy1 = parseFloat(fm["revenue_fy1_inr_cr"] || "0")
+  const fy2 = parseFloat(fm["revenue_fy2_inr_cr"] || "0")
+  const fy3 = parseFloat(fm["revenue_fy3_inr_cr"] || "0")
+  const fy4 = parseFloat(fm["revenue_fy4_inr_cr"] || "0")
+  let rRevenueCagr: number | undefined
+  if (fy1 > 0 && fy4 > 0 && fy1 !== fy4) {
+    rRevenueCagr = Math.round(((fy1 / fy4) ** (1 / 3) - 1) * 1000) / 10  // 3yr CAGR
+  } else if (fy1 > 0 && fy3 > 0 && fy1 !== fy3) {
+    rRevenueCagr = Math.round(((fy1 / fy3) ** (1 / 2) - 1) * 1000) / 10  // 2yr CAGR
+  } else if (fy1 > 0 && fy2 > 0 && fy1 !== fy2) {
+    rRevenueCagr = Math.round((fy1 / fy2 - 1) * 1000) / 10               // 1yr YoY
+  } else if (merged.revenue_yoy_pct) {
+    rRevenueCagr = merged.revenue_yoy_pct                                  // fallback scalar
+  }
+
+  // Burn Multiple: lifetime capital deployed ÷ annual revenue (lower = more efficient)
+  const rBurnMultiple = (rev && raisedInr > 0)
+    ? Math.round(raisedInr / rev * 10) / 10 : undefined
+
+  // Rev per Head: revenue in INR Lakhs per employee (operational leverage)
+  const rRevPerHead = (rev && merged.team_size && merged.team_size > 0)
+    ? Math.round(rev * 100 / merged.team_size * 10) / 10 : undefined
+
+  // ACV Proxy: revenue in INR Lakhs per client (B2B enterprise depth)
+  const rACV = (rev && merged.client_count && merged.client_count > 0)
+    ? Math.round(rev * 100 / merged.client_count * 10) / 10 : undefined
+
+  // Round Cadence: funding rounds per year (fundraising frequency)
+  const roundCount = parseInt(fm["round_count"] || "0")
+  const rRoundCadence = (roundCount > 0 && monthsOp > 0)
+    ? Math.round(roundCount / (monthsOp / 12) * 10) / 10 : undefined
+
+  // Last Round Age: months since last close (capital freshness)
+  const lastRoundMs = merged.last_round_date ? new Date(merged.last_round_date).getTime() : 0
+  const rLastRoundAge = lastRoundMs > 0
+    ? Math.round((Date.now() - lastRoundMs) / (30.44 * 24 * 3600 * 1000)) : undefined
+
+  // Investor Tier: 1–5 ordinal (5=Tier 1, 4=Tier 2, 3=Angel, 2=Govt, 1=other-backed)
+  const rInvestorQuality = tier === "tier1" ? 5 : tier === "tier2" ? 4 : tier === "angel" ? 3
+    : tier === "govt" ? 2 : raisedUsd > 0 ? 1 : undefined
+
+  // Product Lines: distinct product families found
+  const rProductSurface = productSurface > 0 ? productSurface : undefined
+
+  // Founder Depth: nuanced 0–10 from domain tenure + track record + pedigree
+  let founderDepth = 3
+  const domainYrs = parseInt(fm["founder_1_domain_years"] || "0")
+  if (domainYrs >= 10) founderDepth = 8
+  else if (domainYrs >= 7) founderDepth = 7
+  else if (domainYrs >= 5) founderDepth = 6
+  else if (domainYrs >= 3) founderDepth = 5
+  if (fm["founder_1_prior_exit"]    === "yes") founderDepth = Math.min(10, founderDepth + 2)
+  if (fm["founder_1_prior_startup"] === "yes") founderDepth = Math.min(10, founderDepth + 1)
+  if (edu.includes("iit") || edu.includes("iim") || edu.includes("isb")) founderDepth = Math.min(10, founderDepth + 1)
+  const rFounderDepth = founderDepth
+
+  // Capital Productivity: annual revenue as % of total capital raised (higher = efficient)
+  const rCapitalProductivity = (rev && raisedInr > 0)
+    ? Math.round(rev / raisedInr * 1000) / 10 : undefined
 
   return {
     scores: {
@@ -629,7 +755,17 @@ function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile>
       w_founder: wf, w_traction: wt, w_capital: wc, w_product: wp, w_market: wm, w_momentum: wmo,
       composite_score: composite,
       fields_applicable: fieldsApplicable, fields_collected: fieldsCollected,
-      fields_unknown: fieldsUnknown, fields_not_applicable: 0, data_quality_pct: dq,
+      fields_unknown: fieldsUnknown, fields_not_applicable: fieldsNotApplicable, data_quality_pct: dq,
+      r_traction_velocity:    rRevenueCagr,
+      r_funding_velocity:     rBurnMultiple,
+      r_capital_efficiency:   rRevPerHead,
+      r_team_leverage:        rACV,
+      r_recognition_momentum: rRoundCadence,
+      r_valuation_arr_mult:   rLastRoundAge,
+      r_investor_quality:     rInvestorQuality,
+      r_product_surface:      rProductSurface,
+      r_founder_mkt_fit:      rFounderDepth,
+      r_round_up_ratio:       rCapitalProductivity,
     }
   }
 }
@@ -716,16 +852,19 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   )
 
   const passesStatus: PassesStatus = { ...(req.existingPassesStatus || {}) }
+  // Seed merged with pre-loaded DB data when resuming a failed job, so computeScores
+  // has the full picture even if some passes are skipped (already completed).
   let merged: Partial<StartupProfile> = {
     brand_name: req.company,
     hq_country: req.country,
     youtube: [],
     linkedin: [],
     raw_fields: [],
+    ...(req.initialMerged || {}),
   }
 
-  // Hard deadline: 130s — leaves 20s for DB cleanup before EdgeRuntime kills at 150s.
-  const deadline = Date.now() + 130_000
+  // Hard deadline: 140s — leaves 10s for DB cleanup before EdgeRuntime kills at 150s.
+  const deadline = Date.now() + 140_000
 
   await req.onProgress?.(5, "Starting research")
 
@@ -734,8 +873,8 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   // raceTimeout wraps every claudeCall so hanging passes are capped at the budget.
   const PASS_BATCHES: PassName[][] = [
     ["overview", "founders", "glassdoor"],
-    ["funding", "products", "regulatory", "signals"],
-    ["youtube", "linkedin_founder", "linkedin_company"],
+    ["funding", "products", "regulatory", "youtube"],
+    ["signals", "linkedin_founder", "linkedin_company"],
   ]
 
   for (const batch of PASS_BATCHES) {
@@ -768,38 +907,46 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     const results = await Promise.all(toRun.map(async (passName) => {
       try {
         const spec = PASS_SPECS[passName]
-        const budgetMs = Math.max(Math.min(90_000, deadline - Date.now() - 8_000), 5_000)
+        const budgetMs = Math.max(Math.min(130_000, deadline - Date.now() - 8_000), 5_000)
         // Pass merged context — batch-2 uses industry/stage/website; batch-3 uses founderName
         const founderName = merged.raw_fields?.find(f => f.field_name === "founder_1_name")?.raw_value
         const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName, website: merged.website, legalName: merged.legal_name }
-        const text = await raceTimeout(
-          claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model),
-          budgetMs
+        const controller = new AbortController()
+        let apiError: string | null = null
+        const result = await raceTimeout(
+          claudeCall(apiKey, spec.system, spec.user(req.company, req.country, ctx), spec.maxTokens, spec.maxSearches ?? 1, deadline, spec.model, controller.signal)
+            .catch(e => { apiError = String(e); console.warn(`[${req.jobId}] ${passName} claudeCall error: ${e}`); return null }),
+          budgetMs,
+          controller
         )
-        if (text === null || text.trim() === "") {
-          return { passName, partial: null as Partial<StartupProfile> | null, error: "No response from API" }
+        if (result === null) {
+          const errMsg = apiError ? `API error: ${apiError}` : "No response from API (budget exhausted)"
+          return { passName, partial: null as Partial<StartupProfile> | null, error: errMsg, tokensIn: 0, tokensOut: 0 }
         }
-        const obj = parseJson(text)
+        if (result.text.trim() === "") {
+          return { passName, partial: null as Partial<StartupProfile> | null, error: "Empty response from API", tokensIn: result.tokensIn, tokensOut: result.tokensOut }
+        }
+        const obj = parseJson(result.text)
         if (!obj) {
-          return { passName, partial: null, error: `JSON parse failed: ${text.slice(0, 100)}` }
+          return { passName, partial: null, error: `JSON parse failed: ${result.text.slice(0, 100)}`, tokensIn: result.tokensIn, tokensOut: result.tokensOut }
         }
-        return { passName, partial: obj as Partial<StartupProfile>, error: null }
+        return { passName, partial: obj as Partial<StartupProfile>, error: null, tokensIn: result.tokensIn, tokensOut: result.tokensOut }
       } catch (e) {
-        return { passName, partial: null, error: e instanceof Error ? e.message : String(e) }
+        return { passName, partial: null, error: e instanceof Error ? e.message : String(e), tokensIn: 0, tokensOut: 0 }
       }
     }))
 
     // Process results sequentially so merges and DB writes don't interleave.
     // overview is always first in its batch, ensuring startupId is set before
     // founders/glassdoor callbacks run.
-    for (const { passName, partial, error } of results) {
+    for (const { passName, partial, error, tokensIn, tokensOut } of results) {
       if (error || !partial) {
         passesStatus[passName] = { status: "failed", completed_at: new Date().toISOString(), error: error || "Unknown" }
         console.warn(`[${req.jobId}] Pass ${passName} failed: ${error}`)
         await req.onPassStatusUpdate?.({ ...passesStatus })
       } else {
         merged = mergePartial(merged, partial)
-        passesStatus[passName] = { status: "completed", completed_at: new Date().toISOString() }
+        passesStatus[passName] = { status: "completed", completed_at: new Date().toISOString(), tokens_in: tokensIn, tokens_out: tokensOut }
         await req.onPassComplete?.(passName, partial, { ...passesStatus })
         console.log(`[${req.jobId}] Pass ${passName}: completed`)
       }

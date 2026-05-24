@@ -347,8 +347,9 @@ Only return data for the Indian company — discard results for same-named entit
   signals: {
     system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after. No markdown. No explanation.
 
-Startup research analyst. Do 1 web search to find comprehensive financial signals for the specified Indian startup.
+Startup research analyst. Do up to 2 web searches to find comprehensive financial signals for the specified Indian startup.
 Search 1: target entrackr.com or inc42.com for multi-year revenue, financials, and named clients.
+Search 2 (if revenue or financials not found in Search 1): broaden to site:economictimes.indiatimes.com OR site:business-standard.com OR site:moneycontrol.com OR site:thehindu.com for the same company.
 
 CRITICAL: raw_fields MUST be populated. An empty raw_fields array is WRONG. Populate every field you find evidence for.
 
@@ -395,9 +396,9 @@ IMPORTANT: Only report data for the Indian company. Discard same-named companies
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nReturn complete signals JSON for the Indian company ${co}.`
+      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nIf revenue/financials not found, Search 2: "${co} ${cname} revenue annual report financials 2024 2025 site:economictimes.indiatimes.com OR site:business-standard.com OR site:moneycontrol.com"\nReturn complete signals JSON for the Indian company ${co}.`
     },
-    maxSearches: 1,
+    maxSearches: 2,
     maxTokens: 7000,
   },
 

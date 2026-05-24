@@ -176,7 +176,7 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
 Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
-Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_* and founder_3_* if they exist.
+Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_*, founder_3_*, founder_4_* if they exist.
 advisor_count (number), notable_advisors (comma-separated names).
 CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). STRICT RULE: only output a cxo_N entry if you found a real name. Never write "not specified", "unknown", or any placeholder. If background is unknown, omit cxo_N_background entirely.
 IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
@@ -185,6 +185,7 @@ IMPORTANT: Search specifically for the Indian company. Ignore same-named compani
       return `Search: "${co} ${cname} founders CEO CTO CPO COO CFO executive leadership team C-suite background education" — return founders and CXO raw_fields JSON for the Indian startup ${co}.`
     },
     maxTokens: 5000,
+    maxSearches: 2,
     model: "claude-haiku-4-5-20251001",
   },
 
@@ -874,7 +875,8 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   const PASS_BATCHES: PassName[][] = [
     ["overview", "founders", "glassdoor"],
     ["funding", "products", "regulatory", "youtube"],
-    ["signals", "linkedin_founder", "linkedin_company"],
+    ["signals"],
+    ["linkedin_founder", "linkedin_company"],
   ]
 
   for (const batch of PASS_BATCHES) {

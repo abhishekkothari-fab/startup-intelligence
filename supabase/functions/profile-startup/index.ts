@@ -29,9 +29,10 @@ const CORS = {
 const WAVE_PASSES: Record<number, string[]> = {
   1: ["overview", "founders", "glassdoor"],
   2: ["funding", "products", "regulatory", "youtube"],
-  3: ["signals", "linkedin_founder", "linkedin_company"],
+  3: ["signals"],
+  4: ["linkedin_founder", "linkedin_company"],
 }
-const TOTAL_WAVES = 3
+const TOTAL_WAVES = 4
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

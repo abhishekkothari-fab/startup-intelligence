@@ -565,6 +565,13 @@ async function claudeCall(
         .filter(b => b.type === "text")
         .map(b => b.text || "")
         .join("")
+      // If response doesn't start with { the model ignored the format instruction — send one correction.
+      if (!text.trim().startsWith("{")) {
+        console.warn(`[claudeCall] Response did not start with {, sending format correction`)
+        messages.push({ role: "assistant", content: data.content })
+        messages.push({ role: "user", content: "Your response must start with { and end with }. Return ONLY the JSON object with no other text, explanation, or markdown." })
+        continue
+      }
       return { text, tokensIn: totalTokensIn, tokensOut: totalTokensOut }
     }
 

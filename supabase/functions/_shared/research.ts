@@ -16,9 +16,9 @@ export const PASS_NAMES = [
 export type PassName = typeof PASS_NAMES[number]
 
 export const PASS_PROGRESS: Record<PassName, number> = {
-  overview: 10, founders: 20, glassdoor: 28, funding: 38,
-  products: 48, regulatory: 55, signals: 65, youtube: 75,
-  linkedin_founder: 82, linkedin_company: 90,
+  overview: 12, founders: 22, glassdoor: 30, funding: 40,
+  products: 50, regulatory: 58, youtube: 65, signals: 76,
+  linkedin_founder: 84, linkedin_company: 91,
 }
 
 export interface ResearchRequest {
@@ -874,7 +874,8 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   // Batch 1: core identity. Batch 2: deeper data. Batch 3: media signals.
   // raceTimeout wraps every claudeCall so hanging passes are capped at the budget.
   const PASS_BATCHES: PassName[][] = [
-    ["overview", "founders", "glassdoor"],
+    ["overview"],
+    ["founders", "glassdoor"],
     ["funding", "products", "regulatory", "youtube"],
     ["signals"],
     ["linkedin_founder", "linkedin_company"],

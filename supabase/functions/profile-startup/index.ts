@@ -27,12 +27,13 @@ const CORS = {
 
 // Each wave runs in its own 150s EdgeRuntime window, bypassing the free-plan limit.
 const WAVE_PASSES: Record<number, string[]> = {
-  1: ["overview", "founders", "glassdoor"],
-  2: ["funding", "products", "regulatory", "youtube"],
-  3: ["signals"],
-  4: ["linkedin_founder", "linkedin_company"],
+  1: ["overview"],
+  2: ["founders", "glassdoor"],
+  3: ["funding", "products", "regulatory", "youtube"],
+  4: ["signals"],
+  5: ["linkedin_founder", "linkedin_company"],
 }
-const TOTAL_WAVES = 4
+const TOTAL_WAVES = 5
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -219,7 +220,7 @@ async function runResearch(
           .select("field_name,field_pack,applicability,applicability_reason,raw_value,data_type,source_type,source_url,confidence")
           .eq("startup_id", startupId),
         supabase.from("startups")
-          .select("auto_stage,auto_industry,auto_industry_sub,total_raised_usd_m,revenue_inr_cr,revenue_fy,is_profitable,team_size,client_count,glassdoor_rating,founded_date")
+          .select("auto_stage,auto_industry,auto_industry_sub,website,legal_name,total_raised_usd_m,revenue_inr_cr,revenue_fy,is_profitable,team_size,client_count,glassdoor_rating,founded_date")
           .eq("id", startupId)
           .single(),
       ]);

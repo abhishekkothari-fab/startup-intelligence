@@ -192,6 +192,14 @@ export async function writeStartupPartial(
 
 // ── Signals ───────────────────────────────────────────────────────
 
+function safeApplicability(v: unknown): string {
+  const s = String(v || "").toLowerCase().replace(/[\s_-]+/g, "_").trim();
+  if (s === "not_applicable" || s === "not_app" || s === "n/a" || s === "na" || s === "inapplicable") return "not_applicable";
+  if (s === "unknown") return "unknown";
+  if (s === "applicable") return "applicable";
+  return "unknown";
+}
+
 export async function appendRawFields(
   supabase: SupabaseClient,
   startupId: string,
@@ -202,7 +210,7 @@ export async function appendRawFields(
     startup_id:           startupId,
     field_name:           f.field_name,
     field_pack:           f.field_pack  || "base",
-    applicability:        f.applicability || "applicable",
+    applicability:        safeApplicability(f.applicability),
     applicability_reason: f.applicability_reason ?? null,
     raw_value:            f.raw_value   ?? null,
     data_type:            f.data_type   ?? null,

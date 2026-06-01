@@ -18,27 +18,26 @@ const CIRC = 2 * Math.PI * 60
 
 const NAV_GROUPS = [
   { group: "Overview", items: [
-    { n: "—", id: "hero", label: "Hero" },
     { n: "01", id: "s01", label: "Key Metrics" },
     { n: "02", id: "s02", label: "Corporate Structure" },
   ]},
   { group: "Intelligence", items: [
-    { n: "03", id: "s03", label: "Score Card" },
-    { n: "04", id: "s04", label: "Founders" },
-    { n: "05", id: "s05", label: "Products" },
+    { n: "03", id: "s04", label: "Founders & Team" },
+    { n: "04", id: "s05", label: "Product" },
   ]},
   { group: "Ecosystem", items: [
-    { n: "06", id: "s06", label: "Funding History" },
-    { n: "07", id: "s07", label: "Partnerships" },
+    { n: "05", id: "s06", label: "Funding" },
+    { n: "06", id: "s07", label: "Partnerships" },
+    { n: "07", id: "s12", label: "Recognitions" },
   ]},
-  { group: "New Sources · v3", items: [
-    { n: "08", id: "s08", label: "YouTube" },
-    { n: "09", id: "s09", label: "LinkedIn" },
-    { n: "10", id: "s10", label: "Glassdoor" },
+  { group: "Social Media", items: [
+    { n: "08", id: "s09", label: "LinkedIn" },
+    { n: "09", id: "s10", label: "Glassdoor" },
+    { n: "10", id: "s08", label: "YouTube" },
   ]},
   { group: "Analysis", items: [
-    { n: "11", id: "s11", label: "Strategic Insights" },
-    { n: "12", id: "s12", label: "Recognitions" },
+    { n: "11", id: "s03", label: "Scorecard" },
+    { n: "12", id: "s11", label: "Strategic Insights" },
   ]},
 ]
 
@@ -62,7 +61,7 @@ export default function ProfilePage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [researching, setResearching] = useState(!!job_id)
-  const [activeSection, setActiveSection] = useState("hero")
+  const [activeSection, setActiveSection] = useState("s01")
   const [activeProd, setActiveProd] = useState(0)
   const ringRef = useRef<SVGCircleElement>(null)
 
@@ -159,8 +158,8 @@ export default function ProfilePage({
     }))
     .filter(r => r.type)
   const cxos = [1,2,3,4,5,6]
-    .map(n => ({ name: rv(`cxo_${n}_name`), role: rv(`cxo_${n}_role`) }))
-    .filter(c => c.name && !c.name.startsWith("not specified"))
+    .map(n => ({ name: rv(`cxo_${n}_name`), role: rv(`cxo_${n}_role`), background: rv(`cxo_${n}_background`) }))
+    .filter(c => c.name && !c.name.startsWith("not specified") && c.name.toLowerCase() !== "unknown")
   const partnerships = [1,2,3,4,5,6,7,8].map(n => ({
     partner:  rv(`partnership_${n}_partner`) || rv(`partnership_${n}`),
     category: rv(`partnership_${n}_category`),
@@ -168,6 +167,16 @@ export default function ProfilePage({
     signal:   rv(`partnership_${n}_signal`),
   })).filter(p => p.partner)
   const hasStructuredPartnerships = partnerships.some(p => p.category || p.usecase)
+  const entities = [1,2,3,4,5,6].map(n => ({
+    name: rv(`entity_${n}_name`),
+    role: rv(`entity_${n}_role`) || rv(`entity_${n}_description`),
+    note: rv(`entity_${n}_note`) || rv(`entity_${n}_type`),
+  })).filter(e => e.name && !e.name.startsWith("not specified"))
+  const entityFallback = !entities.length && rv("sub_brands")
+    ? rv("sub_brands").split(/[,·]/).map(b => b.trim()).filter(Boolean).map(b => ({ name: b, role: "", note: "" }))
+    : []
+  const allEntities = entities.length ? entities : entityFallback
+
   const clients = [1,2,3,4,5,6,7,8].map(n => ({ name: rv(`client_${n}_name`), sector: rv(`client_${n}_sector`) })).filter(c => c.name)
   const awards = [1,2,3,4,5,6,7,8,9,10].map(n => rv(`award_${n}`)).filter(Boolean)
   const insights = [1,2,3,4,5,6]
@@ -241,7 +250,7 @@ export default function ProfilePage({
           </div>
           <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", lineHeight: 1.9 }}>
             {sc?.data_quality_pct != null && `${sc.data_quality_pct}% data quality`}<br/>
-            {sc?.fields_applicable != null && `${sc.fields_applicable} applicable fields`}<br/>
+            {sc?.fields_applicable != null && `${sc.fields_collected} of ${sc.fields_applicable} fields`}<br/>
             {profile.meta.youtube_count} YT · {profile.meta.linkedin_count} LI signals<br/>
             {str(s.last_collected_at).slice(0,10)}
           </div>
@@ -250,64 +259,6 @@ export default function ProfilePage({
 
       {/* ── MAIN ── */}
       <main style={{ marginLeft: 240, paddingTop: 56 }}>
-
-        {/* HERO */}
-        <section data-sec="hero" id="hero" style={{ background: "#fff", borderBottom: "1px solid var(--border)", padding: "2.5rem 2.5rem 2rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2rem", alignItems: "start" }}>
-            <div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--navy)", marginBottom: "0.625rem", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 20, height: 2, background: "var(--navy)", borderRadius: 1, display: "inline-block", flexShrink: 0 }}/>
-                Intelligence Report · {str(s.industry || s.auto_industry)} · {str(s.industry_sub || s.auto_industry_sub)}
-              </div>
-              <h1 style={{ fontFamily: "var(--serif)", fontSize: "clamp(36px,4vw,52px)", fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", color: "var(--navy)", marginBottom: "0.625rem" }}>
-                {str(s.brand_name)}
-              </h1>
-              {str(s.auto_tagline) && (
-                <p style={{ fontSize: 15, color: "var(--text-m)", lineHeight: 1.65, maxWidth: 540, marginBottom: "1.5rem" }}>
-                  {str(s.auto_tagline)}
-                </p>
-              )}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1.75rem" }}>
-                {str(s.stage || s.auto_stage) && <Badge navy>{str(s.stage || s.auto_stage).replace(/_/g," ").toUpperCase()}</Badge>}
-                {Boolean(s.is_profitable) && <Badge green>✓ Profitable</Badge>}
-                {str(s.industry || s.auto_industry) && <Badge blue>{str(s.industry || s.auto_industry)}</Badge>}
-                {str(s.industry_sub || s.auto_industry_sub) && <Badge blue>{str(s.industry_sub || s.auto_industry_sub)}</Badge>}
-                {str(s.hq_city) && <Badge gray>{str(s.hq_city)}</Badge>}
-                {str(s.founded_date) && <Badge gray>Est. {str(s.founded_date).slice(0,4)}</Badge>}
-                {str(s.glassdoor_rating) && <Badge amber>Glassdoor {str(s.glassdoor_rating)}/5</Badge>}
-                {sc && <Badge amber blink>⊙ {sc.status === "provisional" ? "Provisional Score" : "Final Score"}</Badge>}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-                <HeroStat label={`Revenue ${str(s.revenue_fy) || rv("revenue_fy1_year") || "FY25"}`}
-                  value={s.revenue_inr_cr ? `₹${str(s.revenue_inr_cr)} Cr` : rv("revenue_fy1_inr_cr") ? `₹${rv("revenue_fy1_inr_cr")} Cr` : "—"}
-                  sub={s.revenue_yoy_pct ? `+${str(s.revenue_yoy_pct)}% YoY` : ""} border />
-                <HeroStat label="Total Raised"
-                  value={s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M` : "—"}
-                  sub={rv("round_count") ? `${rv("round_count")} rounds` : str(s.last_round_type)} border />
-                <HeroStat label="Clients"
-                  value={s.client_count ? `${str(s.client_count)}+` : "—"}
-                  sub="Enterprise" border />
-                <HeroStat label={volumeMetric ? "Scale" : "Team"}
-                  value={volumeMetric ? (volumeMetric.split(";")[0]?.trim() || volumeMetric) : s.team_size ? str(s.team_size) : "—"}
-                  sub={volumeMetric ? "" : "employees"} />
-              </div>
-            </div>
-            {/* Score Ring */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <div style={{ position: "relative", width: 148, height: 148 }}>
-                <svg width="148" height="148" viewBox="0 0 140 140" style={{ transform: "rotate(-90deg)", display: "block" }}>
-                  <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border-md)" strokeWidth="9"/>
-                  <circle ref={ringRef} cx="70" cy="70" r="60" fill="none" stroke="var(--navy)" strokeWidth="9" strokeLinecap="round"/>
-                </svg>
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ fontFamily: "var(--serif)", fontSize: 40, fontWeight: 700, color: "var(--navy)", lineHeight: 1 }}>{score}</div>
-                  <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", marginTop: 2 }}>/100</div>
-                </div>
-              </div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Composite Score</div>
-            </div>
-          </div>
-        </section>
 
         {/* ── S01 KEY METRICS ── */}
         <section data-sec="s01" id="s01" style={SEC}>
@@ -420,22 +371,22 @@ export default function ProfilePage({
             {rv("sub_brands") && <><strong style={{ color: "var(--text-m)" }}>Brands:</strong> {rv("sub_brands")}</>}
           </div>
 
-          {rv("sub_brands") && (
+          {allEntities.length > 0 && (
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--bg-soft)" }}>
-                    {["Entity / Brand","Role","Note"].map(h => (
+                    {["Entity", "Role / Purpose", "Note"].map(h => (
                       <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rv("sub_brands").split(/[,·]/).map(b => b.trim()).filter(Boolean).map((brand, i) => (
+                  {allEntities.map((e, i) => (
                     <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
-                      <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 500 }}>{brand}</td>
-                      <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-m)" }}>—</td>
-                      <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-s)" }}>—</td>
+                      <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 600, whiteSpace: "nowrap" }}>{e.name}</td>
+                      <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-m)", lineHeight: 1.5 }}>{e.role || "—"}</td>
+                      <td style={{ padding: "0.75rem 1rem", fontSize: 12, color: "var(--text-s)", lineHeight: 1.5 }}>{e.note || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -444,75 +395,9 @@ export default function ProfilePage({
           )}
         </section>
 
-        {/* ── S03 SCORE CARD ── */}
-        <section data-sec="s03" id="s03" style={SEC}>
-          <SecHeader n="03" title="Score Card" />
-          {!sc ? <Empty>No score data yet.</Empty> : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
-                {([
-                  ["Founder Quality",    sc.dim_founder,  sc.w_founder,  "var(--navy)"],
-                  ["Traction / Revenue", sc.dim_traction, sc.w_traction, "var(--green)"],
-                  ["Capital / Funding",  sc.dim_capital,  sc.w_capital,  "var(--navy)"],
-                  ["Product / Moat",     sc.dim_product,  sc.w_product,  "var(--green)"],
-                  ["Market Opportunity", sc.dim_market,   sc.w_market,   "var(--navy)"],
-                  ["Momentum",           sc.dim_momentum, sc.w_momentum, "var(--navy)"],
-                ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
-                  <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
-                      <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
-                    </div>
-                    <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
-                      <div style={{ height: "100%", width: val ? `${val}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
-                  </div>
-                ))}
-              </div>
-
-              {sc.data_quality_pct != null && (
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 6, padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--green)", whiteSpace: "nowrap", fontWeight: 500 }}>Data Quality</span>
-                  <div style={{ flex: 1, height: 6, background: "var(--green-bd)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${sc.data_quality_pct}%`, background: "var(--green)", borderRadius: 3 }}/>
-                  </div>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.data_quality_pct}%</span>
-                  {sc.fields_applicable != null && (
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.fields_collected} of {sc.fields_applicable} fields</span>
-                  )}
-                </div>
-              )}
-
-              <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem 1.5rem" }}>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: "0.75rem", fontWeight: 500 }}>Universal Ratios</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 2rem" }}>
-                  {([
-                    ["Funding Velocity",    sc.r_funding_velocity     ? `~₹${sc.r_funding_velocity} Cr/mo` : null],
-                    ["Traction Velocity",   sc.r_traction_velocity    ? `~${sc.r_traction_velocity} cl/mo`  : null],
-                    ["Founder-Market Fit",  sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`        : null],
-                    ["Investor Quality",    sc.r_investor_quality     ? String(sc.r_investor_quality)       : null],
-                    ["Product Surface",     sc.r_product_surface      ? String(sc.r_product_surface)        : null],
-                    ["Recognition",         sc.r_recognition_momentum ? String(sc.r_recognition_momentum)   : null],
-                    ["Capital Efficiency",  sc.r_capital_efficiency   ? String(sc.r_capital_efficiency)     : null],
-                    ["Valuation/ARR Mult",  sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult}x`      : null],
-                    ["Team Leverage",       sc.r_team_leverage        ? String(sc.r_team_leverage)          : null],
-                    ["Round-up Ratio",      sc.r_round_up_ratio       ? String(sc.r_round_up_ratio)         : null],
-                  ] as [string, string|null][]).map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0.5rem 0", borderBottom: "1px solid var(--border)", gap: "1rem" }}>
-                      <span style={{ fontSize: 12, color: "var(--text-s)" }}>{k}</span>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: v ? 500 : 400, color: v ? "var(--text-m)" : "var(--text-xs)", fontStyle: v ? "normal" : "italic", whiteSpace: "nowrap" }}>{v || "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </section>
-
-        {/* ── S04 FOUNDERS ── */}
+        {/* ── S04 FOUNDERS & TEAM ── */}
         <section data-sec="s04" id="s04" style={SEC}>
-          <SecHeader n="04" title="Founders & Leadership" />
+          <SecHeader n="03" title="Founders & Team" />
           {founders.length === 0 ? <Empty>No founder data collected yet.</Empty> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -525,22 +410,27 @@ export default function ProfilePage({
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-h)", marginBottom: 2 }}>{f.name}</div>
                     {f.role && <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--navy)", marginBottom: "0.625rem", fontWeight: 500 }}>{f.role}</div>}
-                    {f.bio
-                      ? <p style={{ fontSize: 12, color: "var(--text-s)", lineHeight: 1.6 }}>{f.bio}</p>
-                      : (f.education || f.domainYears) && (
-                          <p style={{ fontSize: 12, color: "var(--text-s)", lineHeight: 1.6 }}>
-                            {[f.education, f.domainYears ? `${f.domainYears}yr domain exp` : "", f.priorStartup === "yes" ? "Prior startup" : ""].filter(Boolean).join(" · ")}
-                          </p>
-                        )
-                    }
+                    {(() => {
+                      const bio = f.bio && !/^not specified/i.test(f.bio) ? f.bio : ""
+                      const edu = f.education && !/^not specified/i.test(f.education) ? f.education : ""
+                      return bio
+                        ? <p style={{ fontSize: 12, color: "var(--text-s)", lineHeight: 1.6 }}>{bio}</p>
+                        : (edu || f.domainYears) && (
+                            <p style={{ fontSize: 12, color: "var(--text-s)", lineHeight: 1.6 }}>
+                              {[edu, f.domainYears ? `${f.domainYears}yr domain exp` : "", f.priorStartup === "yes" ? "Prior startup" : ""].filter(Boolean).join(" · ")}
+                            </p>
+                          )
+                    })()}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.625rem" }}>
                       <span style={{ fontFamily: "var(--mono)", fontSize: 9, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: f.status?.toLowerCase() === "former" ? "var(--text-xs)" : "var(--green)", display: "flex", alignItems: "center", gap: 4 }}>
                         {f.status?.toLowerCase() === "former" ? "○ Former" : "● Active"}
                       </span>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {f.isIitIim && f.isIitIim !== "false" && f.isIitIim !== "no" && (
-                          <span style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>IIT/IIM</span>
-                        )}
+                        {f.isIitIim && f.isIitIim !== "false" && f.isIitIim !== "no" && (() => {
+                          const edu = (f.education || "").toLowerCase()
+                          const label = edu.includes("isb") ? "ISB" : edu.includes("iim") ? "IIM" : edu.includes("iit") ? "IIT" : "Premier"
+                          return <span style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>{label}</span>
+                        })()}
                         {f.linkedinUrl && <a href={f.linkedinUrl} target="_blank" rel="noreferrer" style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--blue)", textDecoration: "none" }}>↗ LI</a>}
                       </div>
                     </div>
@@ -557,15 +447,17 @@ export default function ProfilePage({
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
                         <tr style={{ background: "var(--bg-soft)" }}>
-                          {["Name","Role","Note"].map(h => <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>)}
+                          {["Name","Role","Background"].map(h => <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
                         {cxos.map((c, i) => (
                           <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
-                            <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 500 }}>{c.name}</td>
-                            <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-m)" }}>{c.role || "—"}</td>
-                            <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-s)" }}>—</td>
+                            <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 600, whiteSpace: "nowrap" }}>{c.name}</td>
+                            <td style={{ padding: "0.75rem 1rem" }}>
+                              <span style={{ display: "inline-block", fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4, background: "var(--bg-soft)", color: "var(--navy)", border: "1px solid var(--border-md)" }}>{c.role || "—"}</span>
+                            </td>
+                            <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-s)", lineHeight: 1.55 }}>{c.background || <span style={{ color: "var(--text-xs)", fontStyle: "italic" }}>—</span>}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -577,9 +469,9 @@ export default function ProfilePage({
           )}
         </section>
 
-        {/* ── S05 PRODUCTS ── */}
+        {/* ── S05 PRODUCT ── */}
         <section data-sec="s05" id="s05" style={SEC}>
-          <SecHeader n="05" title="Products & Technology" />
+          <SecHeader n="04" title="Product" />
           {products.length === 0 ? <Empty>No product data collected yet.</Empty> : (
             <>
               <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: "1.5rem", overflowX: "auto" }}>
@@ -617,9 +509,9 @@ export default function ProfilePage({
           )}
         </section>
 
-        {/* ── S06 FUNDING HISTORY ── */}
+        {/* ── S06 FUNDING ── */}
         <section data-sec="s06" id="s06" style={SEC}>
-          <SecHeader n="06" title="Funding History" />
+          <SecHeader n="05" title="Funding" />
           {roundHistory.length === 0 ? <Empty>No funding data collected yet.</Empty> : (
             <>
               <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
@@ -656,7 +548,7 @@ export default function ProfilePage({
 
         {/* ── S07 PARTNERSHIPS ── */}
         <section data-sec="s07" id="s07" style={SEC}>
-          <SecHeader n="07" title="Ecosystem & Partnerships" />
+          <SecHeader n="06" title="Partnerships" />
           {partnerships.length === 0 ? <Empty>No partnership data collected yet.</Empty> : (
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -694,53 +586,26 @@ export default function ProfilePage({
           )}
         </section>
 
-        {/* ── S08 YOUTUBE ── */}
-        <section data-sec="s08" id="s08" style={SEC}>
-          <SecHeader n="08" title="YouTube Intelligence" badge="Pass 7" />
-          {profile.youtube.length === 0 ? <Empty>No YouTube data collected.</Empty> : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: "8px 8px 0 0", overflow: "hidden" }}>
-                {([
-                  ["Videos", profile.youtube.length],
-                  ["Latest",  profile.youtube[0]?.published_date?.slice(0,7) || "—"],
-                  ["Own Channel", profile.youtube.some(v => v.is_own_channel) ? "Yes" : "No"],
-                  ["Types", new Set(profile.youtube.map(v => v.video_type)).size],
-                ] as [string, string|number][]).map(([l, v]) => (
-                  <div key={l} style={{ background: "#fff", padding: "1rem 1.25rem" }}>
-                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{l}</div>
-                    <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontWeight: 700, color: "var(--text-h)" }}>{String(v)}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden" }}>
-                {profile.youtube.map((v, i) => {
-                  const bg:  Record<string,string> = { founder_on_camera:"var(--blue-lt)", podcast_feature:"var(--green-lt)", culture_content:"var(--amber-lt)" }
-                  const clr: Record<string,string> = { founder_on_camera:"var(--navy)",    podcast_feature:"var(--green)",    culture_content:"var(--amber)" }
-                  return (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "30px 1fr auto", gap: 14, alignItems: "start", padding: "0.875rem 1.25rem", borderBottom: "1px solid var(--border)", cursor: v.video_url ? "pointer" : "default", transition: "background 0.12s" }}
-                      onClick={() => v.video_url && window.open(v.video_url, "_blank")}
-                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ""}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", paddingTop: 1 }}>{String(i+1).padStart(2,"0")}</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-h)", lineHeight: 1.45, marginBottom: 3 }}>{v.video_title}</div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-s)" }}>{v.published_date} · {v.channel_name}</div>
-                        {v.key_quote && <div style={{ fontSize: 12, color: "var(--text-m)", fontStyle: "italic", marginTop: 4 }}>"{v.key_quote}"</div>}
-                      </div>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", padding: "3px 7px", borderRadius: 4, border: "1px solid var(--border)", whiteSpace: "nowrap", background: bg[v.video_type] || "var(--bg-soft)", color: clr[v.video_type] || "var(--text-s)" }}>
-                        {v.video_type?.replace(/_/g," ")}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
+        {/* ── S12 RECOGNITIONS ── */}
+        <section data-sec="s12" id="s12" style={SEC}>
+          <SecHeader n="07" title="Recognitions" />
+          {awards.length === 0 ? <Empty>No awards or recognitions collected yet.</Empty> : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem" }}>
+              {awards.map((award, i) => (
+                <div key={i} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s, border-color 0.15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(30,58,95,0.1)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 20, color: "var(--amber)", fontWeight: 700, marginBottom: "0.625rem", lineHeight: 1 }}>★</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)", lineHeight: 1.4 }}>{award}</div>
+                </div>
+              ))}
+            </div>
           )}
         </section>
 
         {/* ── S09 LINKEDIN ── */}
         <section data-sec="s09" id="s09" style={SEC}>
-          <SecHeader n="09" title="LinkedIn Intelligence" badge="Passes 8+9" />
+          <SecHeader n="08" title="LinkedIn" badge="Passes 8+9" />
           {profile.linkedin.length === 0 ? <Empty>No LinkedIn signals collected.</Empty> : (
             <>
               {[
@@ -778,7 +643,7 @@ export default function ProfilePage({
 
         {/* ── S10 GLASSDOOR ── */}
         <section data-sec="s10" id="s10" style={SEC}>
-          <SecHeader n="10" title="Glassdoor Culture Signal" badge="Pass 3" />
+          <SecHeader n="09" title="Glassdoor" badge="Pass 3" />
           {!s.glassdoor_rating ? <Empty>No Glassdoor data collected.</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
               <div style={{ textAlign: "center" }}>
@@ -838,9 +703,119 @@ export default function ProfilePage({
           )}
         </section>
 
+        {/* ── S08 YOUTUBE ── */}
+        <section data-sec="s08" id="s08" style={SEC}>
+          <SecHeader n="10" title="YouTube" badge="Pass 7" />
+          {profile.youtube.length === 0 ? <Empty>No YouTube data collected.</Empty> : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: "8px 8px 0 0", overflow: "hidden" }}>
+                {([
+                  ["Videos", profile.youtube.length],
+                  ["Latest",  profile.youtube[0]?.published_date?.slice(0,7) || "—"],
+                  ["Own Channel", profile.youtube.some(v => v.is_own_channel) ? "Yes" : "No"],
+                  ["Types", new Set(profile.youtube.map(v => v.video_type)).size],
+                ] as [string, string|number][]).map(([l, v]) => (
+                  <div key={l} style={{ background: "#fff", padding: "1rem 1.25rem" }}>
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{l}</div>
+                    <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontWeight: 700, color: "var(--text-h)" }}>{String(v)}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden" }}>
+                {profile.youtube.map((v, i) => {
+                  const bg:  Record<string,string> = { founder_on_camera:"var(--blue-lt)", podcast_feature:"var(--green-lt)", culture_content:"var(--amber-lt)" }
+                  const clr: Record<string,string> = { founder_on_camera:"var(--navy)",    podcast_feature:"var(--green)",    culture_content:"var(--amber)" }
+                  return (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "30px 1fr auto", gap: 14, alignItems: "start", padding: "0.875rem 1.25rem", borderBottom: "1px solid var(--border)", cursor: v.video_url ? "pointer" : "default", transition: "background 0.12s" }}
+                      onClick={() => v.video_url && window.open(v.video_url, "_blank")}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ""}>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", paddingTop: 1 }}>{String(i+1).padStart(2,"0")}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-h)", lineHeight: 1.45, marginBottom: 3 }}>{v.video_title}</div>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-s)" }}>{v.published_date} · {v.channel_name}</div>
+                        {v.key_quote && <div style={{ fontSize: 12, color: "var(--text-m)", fontStyle: "italic", marginTop: 4 }}>"{v.key_quote}"</div>}
+                      </div>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", padding: "3px 7px", borderRadius: 4, border: "1px solid var(--border)", whiteSpace: "nowrap", background: bg[v.video_type] || "var(--bg-soft)", color: clr[v.video_type] || "var(--text-s)" }}>
+                        {v.video_type?.replace(/_/g," ")}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* ── S03 SCORECARD ── */}
+        <section data-sec="s03" id="s03" style={SEC}>
+          <SecHeader n="11" title="Scorecard" />
+          {!sc ? <Empty>No score data yet.</Empty> : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
+                {([
+                  ["Founder Quality",    sc.dim_founder,  sc.w_founder,  "var(--navy)"],
+                  ["Traction / Revenue", sc.dim_traction, sc.w_traction, "var(--green)"],
+                  ["Capital / Funding",  sc.dim_capital,  sc.w_capital,  "var(--navy)"],
+                  ["Product / Moat",     sc.dim_product,  sc.w_product,  "var(--green)"],
+                  ["Market Opportunity", sc.dim_market,   sc.w_market,   "var(--navy)"],
+                  ["Momentum",           sc.dim_momentum, sc.w_momentum, "var(--navy)"],
+                ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
+                  <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
+                      <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
+                    </div>
+                    <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ height: "100%", width: val ? `${val}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
+                  </div>
+                ))}
+              </div>
+
+              {sc.data_quality_pct != null && (
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 6, padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--green)", whiteSpace: "nowrap", fontWeight: 500 }}>Data Quality</span>
+                  <div style={{ flex: 1, height: 6, background: "var(--green-bd)", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${sc.data_quality_pct}%`, background: "var(--green)", borderRadius: 3 }}/>
+                  </div>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.data_quality_pct}%</span>
+                  {sc.fields_applicable != null && (
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.fields_collected} of {sc.fields_applicable} fields</span>
+                  )}
+                </div>
+              )}
+
+              <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem 1.5rem" }}>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: "0.75rem", fontWeight: 500 }}>Universal Ratios</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 2rem" }}>
+                  {([
+                    ["Revenue CAGR (3yr)",    sc.r_traction_velocity    ? `${sc.r_traction_velocity}%`                                                                                      : null],
+                    ["Burn Multiple",         sc.r_funding_velocity     ? `${sc.r_funding_velocity}x`                                                                                    : null],
+                    ["Rev per Head",          sc.r_capital_efficiency   ? `₹${sc.r_capital_efficiency}L`                                                                                 : null],
+                    ["ACV Proxy",             sc.r_team_leverage        ? `₹${sc.r_team_leverage}L/client`                                                                               : null],
+                    ["Round Cadence",         sc.r_recognition_momentum ? `${sc.r_recognition_momentum}/yr`                                                                              : null],
+                    ["Last Round Age",        sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult} mo ago`                                                                            : null],
+                    ["Investor Tier",         sc.r_investor_quality     ? (["","Unknown","Govt/Grant","Angel","Tier 2","Tier 1"][sc.r_investor_quality] ?? String(sc.r_investor_quality)) : null],
+                    ["Product Lines",         sc.r_product_surface      ? `${sc.r_product_surface} line${sc.r_product_surface > 1 ? "s" : ""}`                                          : null],
+                    ["Founder Depth",         sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`                                                                                  : null],
+                    ["Capital Productivity",  sc.r_round_up_ratio       ? `${sc.r_round_up_ratio}% rev/raised`                                                                          : null],
+                  ] as [string, string|null][]).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0.5rem 0", borderBottom: "1px solid var(--border)", gap: "1rem" }}>
+                      <span style={{ fontSize: 12, color: "var(--text-s)" }}>{k}</span>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: v ? 500 : 400, color: v ? "var(--text-m)" : "var(--text-xs)", fontStyle: v ? "normal" : "italic", whiteSpace: "nowrap" }}>{v || "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+
         {/* ── S11 STRATEGIC INSIGHTS ── */}
-        <section data-sec="s11" id="s11" style={SEC}>
-          <SecHeader n="11" title="Strategic Insights" />
+        <section data-sec="s11" id="s11" style={{ ...SEC, borderBottom: "none" }}>
+          <SecHeader n="12" title="Strategic Insights" />
           {insights.length === 0 ? (
             <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-xs)", fontSize: 14 }}>
               Strategic insights require a synthesis pass. Re-profile with <code style={{ fontFamily: "var(--mono)", fontSize: 12, background: "var(--bg-soft)", padding: "1px 5px", borderRadius: 3 }}>only_passes: [&quot;insights&quot;]</code> once implemented.
@@ -855,23 +830,6 @@ export default function ProfilePage({
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-h)", lineHeight: 1.45, marginBottom: "0.5rem" }}>{ins.title}</div>
                     <div style={{ fontSize: 13, color: "var(--text-s)", lineHeight: 1.7 }}>{ins.body}</div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ── S12 RECOGNITIONS ── */}
-        <section data-sec="s12" id="s12" style={{ ...SEC, borderBottom: "none" }}>
-          <SecHeader n="12" title="Recognitions" />
-          {awards.length === 0 ? <Empty>No awards or recognitions collected yet.</Empty> : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem" }}>
-              {awards.map((award, i) => (
-                <div key={i} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s, border-color 0.15s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(30,58,95,0.1)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
-                  <div style={{ fontFamily: "var(--mono)", fontSize: 20, color: "var(--amber)", fontWeight: 700, marginBottom: "0.625rem", lineHeight: 1 }}>★</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)", lineHeight: 1.4 }}>{award}</div>
                 </div>
               ))}
             </div>
@@ -896,18 +854,6 @@ function SecHeader({ n, title, badge }: { n: string; title: string; badge?: stri
   )
 }
 
-function HeroStat({ label, value, sub, border }: { label: string; value: string; sub: string; border?: boolean }) {
-  return (
-    <div style={{ padding: "1rem 1.25rem", background: "#fff", borderRight: border ? "1px solid var(--border)" : "none", transition: "background 0.15s" }}
-      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
-      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "#fff"}>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontWeight: 700, color: "var(--text-h)", lineHeight: 1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: "var(--text-s)", marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
-}
-
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color?: string }) {
   return (
     <div style={{ background: "#fff", padding: "1.125rem 1.25rem", transition: "background 0.15s" }}
@@ -917,17 +863,6 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
       <div style={{ fontFamily: "var(--serif)", fontSize: 26, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
-  )
-}
-
-function Badge({ children, navy, blue, green, amber, gray, blink }: { children: React.ReactNode; navy?: boolean; blue?: boolean; green?: boolean; amber?: boolean; gray?: boolean; blink?: boolean }) {
-  const bg    = navy ? "var(--blue-lt)" : blue ? "var(--blue-bg)"  : green ? "var(--green-lt)" : amber ? "var(--amber-lt)" : "var(--bg-soft)"
-  const color = navy ? "var(--navy)"    : blue ? "var(--blue)"     : green ? "var(--green)"    : amber ? "var(--amber)"    : "var(--text-s)"
-  const bdr   = navy ? "var(--blue-md)" : blue ? "var(--blue-bd)"  : green ? "var(--green-bd)" : amber ? "var(--amber-bd)" : "var(--border-md)"
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--mono)", fontSize: 10, fontWeight: 500, letterSpacing: "0.04em", borderRadius: 5, padding: "4px 9px", border: `1px solid ${bdr}`, background: bg, color, animation: blink ? "blink 2.5s ease-in-out infinite" : undefined }}>
-      {children}
-    </span>
   )
 }
 

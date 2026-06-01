@@ -1,7 +1,7 @@
 // supabase/functions/_shared/db.ts
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import type { StartupProfile, PassesStatus } from "./research.ts";
+import type { StartupProfile, PassesStatus } from "./types.ts";
 
 // Sanitize values before DB insert to avoid PostgreSQL type-mismatch errors.
 // Claude sometimes returns "2015" for dates or "500+" for integers.
@@ -65,7 +65,8 @@ export async function updateJobProgress(
   pct: number,
   status: "queued" | "running" | "completed" | "failed" = "running",
   startupId?: string,
-  errorMessage?: string
+  errorMessage?: string,
+  setStartedAt = false
 ): Promise<void> {
   await supabase
     .from("profiling_jobs")
@@ -74,6 +75,67 @@ export async function updateJobProgress(
       status,
       ...(startupId    ? { startup_id:    startupId    } : {}),
       ...(errorMessage ? { error_message: errorMessage } : {}),
+      ...(setStartedAt ? { started_at:    new Date().toISOString() } : {}),
+    })
+    .eq("id", jobId);
+}
+
+export async function finalizeJob(
+  supabase: SupabaseClient,
+  jobId: string,
+  opts: {
+    status: "completed" | "failed";
+    startupId?: string;
+    errorMessage?: string;
+    passesStatus: PassesStatus;
+    passFieldCounts: Record<string, number>;
+    wavesFired: number;
+    retryAttempted: boolean;
+  }
+): Promise<void> {
+  const completedAt = new Date();
+
+  // Read started_at so duration is accurate regardless of which wave finalizes the job.
+  const { data: job } = await supabase
+    .from("profiling_jobs")
+    .select("started_at")
+    .eq("id", jobId)
+    .single();
+  const durationMs = job?.started_at
+    ? completedAt.getTime() - new Date(job.started_at).getTime()
+    : null;
+
+  const entries = Object.values(opts.passesStatus);
+  const totalTokensIn  = entries.reduce((s, v) => s + (v.tokens_in  ?? 0) + (v.prior_tokens_in  ?? 0), 0);
+  const totalTokensOut = entries.reduce((s, v) => s + (v.tokens_out ?? 0) + (v.prior_tokens_out ?? 0), 0);
+  const passesCompleted = entries.filter(v => v.status === "completed").length;
+  const passesFailed    = entries.filter(v => v.status === "failed").length;
+  const totalFieldsWritten = Object.values(opts.passFieldCounts).reduce((s, n) => s + n, 0);
+
+  // Blended cost estimate: products/haiku ~20% of tokens, rest Sonnet.
+  // Sonnet: $3/MTok in, $15/MTok out.  Haiku: $0.80/MTok in, $4/MTok out.
+  const blendIn  = totalTokensIn  / 1_000_000 * (0.8 * 3.0  + 0.2 * 0.80);
+  const blendOut = totalTokensOut / 1_000_000 * (0.8 * 15.0 + 0.2 * 4.0);
+  const estimatedCostUsd = Math.round((blendIn + blendOut) * 1_000_000) / 1_000_000;
+
+  await supabase
+    .from("profiling_jobs")
+    .update({
+      status:               opts.status,
+      progress_pct:         opts.status === "completed" ? 100 : 0,
+      completed_at:         completedAt.toISOString(),
+      ...(durationMs !== null ? { duration_ms: durationMs } : {}),
+      ...(opts.startupId    ? { startup_id:    opts.startupId    } : {}),
+      ...(opts.errorMessage ? { error_message: opts.errorMessage } : {}),
+      total_tokens_in:      totalTokensIn,
+      total_tokens_out:     totalTokensOut,
+      estimated_cost_usd:   estimatedCostUsd,
+      passes_completed:     passesCompleted,
+      passes_failed:        passesFailed,
+      pass_field_counts:    opts.passFieldCounts,
+      total_fields_written: totalFieldsWritten,
+      waves_fired:          opts.wavesFired,
+      retry_attempted:      opts.retryAttempted,
     })
     .eq("id", jobId);
 }
@@ -83,9 +145,25 @@ export async function updatePassStatus(
   jobId: string,
   passesStatus: PassesStatus
 ): Promise<void> {
+  const { data } = await supabase
+    .from("profiling_jobs")
+    .select("passes_status")
+    .eq("id", jobId)
+    .single();
+  const existing = (data?.passes_status as PassesStatus) || {};
+  const merged: PassesStatus = { ...existing };
+  for (const [pass, newStatus] of Object.entries(passesStatus)) {
+    const prev = existing[pass];
+    if (prev?.status === "failed" && prev.error && newStatus.status !== "failed") {
+      console.warn(`[pass-recovery] ${pass}: "${prev.error}" → ${newStatus.status}`);
+      merged[pass] = { ...newStatus, prior_error: prev.error, prior_tokens_in: prev.tokens_in ?? 0, prior_tokens_out: prev.tokens_out ?? 0 };
+    } else {
+      merged[pass] = newStatus;
+    }
+  }
   await supabase
     .from("profiling_jobs")
-    .update({ passes_status: passesStatus })
+    .update({ passes_status: merged })
     .eq("id", jobId);
 }
 
@@ -220,7 +298,8 @@ export async function appendRawFields(
     skill_version:        "v4.0",
   }));
   for (let i = 0; i < rows.length; i += 100) {
-    const { error } = await supabase.from("raw_fields").insert(rows.slice(i, i + 100));
+    const { error } = await supabase.from("raw_fields")
+      .upsert(rows.slice(i, i + 100), { onConflict: "startup_id,field_name" });
     if (error) console.warn(`appendRawFields batch ${i}: ${error.message}`);
   }
 }

@@ -217,7 +217,8 @@ Only include years/clients/awards you actually found. Do not fabricate data.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
-      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients awards site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nIf revenue/financials not found, Search 2: "${co} ${cname} revenue annual report financials 2024 2025 site:economictimes.indiatimes.com OR site:business-standard.com OR site:moneycontrol.com"\nReturn complete signals JSON for the Indian company ${co}.`
+      const siteHint = ctx?.website ? ` OR site:${new URL(ctx.website).hostname}` : ""
+      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2: "${co}" award OR recognition OR winner OR ranked 2022 2023 2024 site:inc42.com OR site:yourstory.com OR site:linkedin.com${siteHint}\nReturn complete signals JSON for the Indian company ${co}.`
     },
     maxSearches: 2,
     maxTokens: 6000,

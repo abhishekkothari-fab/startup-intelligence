@@ -13,7 +13,7 @@ interface PassSpec {
 
 export const PASS_SPECS: Record<PassName, PassSpec> = {
   overview: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"brand_name":"","legal_name":null,"website":null,"founded_date":null,"hq_city":null,"hq_country":"IN","auto_stage":"","auto_industry":"","auto_industry_sub":"","auto_region":"","auto_biz_model":"","auto_entity_pack":"base","team_size":null,"auto_tagline":null}
@@ -22,8 +22,7 @@ auto_industry: BFSI|AI_Infra|D2C|Health|Logistics|EdTech_HRTech
 auto_region: metro_t1(Mumbai/Delhi/Bengaluru)|metro_t2(Pune/Hyd/Chennai/Ahmedabad)|non_metro
 auto_biz_model: enterprise_saas|usage|d2c|nbfc|deeptech_ip
 auto_entity_pack: base OR base|saas OR base|d2c|consumer OR base|nbfc|lending
-auto_tagline: one short punchy sentence (max 10 words) describing what the company does — e.g. "India's trust infrastructure company" or "AI-native compliance platform for Indian banks". Do NOT use marketing language like "revolutionizing" — use precise domain terms.
-IMPORTANT: Search specifically for the Indian company. If the name could refer to multiple companies, focus on the Indian startup.`,
+auto_tagline: one short punchy sentence (max 10 words) describing what the company does — e.g. "India's trust infrastructure company" or "AI-native compliance platform for Indian banks". Do NOT use marketing language like "revolutionizing" — use precise domain terms.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} startup company overview founders profile" — return overview JSON for the Indian company named ${co}.`
@@ -34,15 +33,14 @@ IMPORTANT: Search specifically for the Indian company. If the name could refer t
   },
 
   founders: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
 Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_*, founder_3_*, founder_4_* if they exist.
 advisor_count (number), notable_advisors (comma-separated names).
-CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). STRICT RULE: only output a cxo_N entry if you found a real name. Never write "not specified", "unknown", or any placeholder. If background is unknown, omit cxo_N_background entirely.
-IMPORTANT: Search specifically for the Indian company. Ignore same-named companies in other countries.`,
+CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). Only real names; omit background if unknown.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} founders CEO CTO CPO COO CFO executive leadership team C-suite background education" — return founders and CXO raw_fields JSON for the Indian startup ${co}.`
@@ -54,13 +52,12 @@ IMPORTANT: Search specifically for the Indian company. Ignore same-named compani
   },
 
   glassdoor: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
 {"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_career_opp":null,"glassdoor_positive_outlook_pct":null,"glassdoor_interview_positive_pct":null,"glassdoor_themes":null}
 glassdoor_rating: float (overall). glassdoor_reviews: int (total count). glassdoor_recommend: int (% who recommend). glassdoor_wlb: float (work-life balance sub-score). glassdoor_culture: float (culture & values sub-score). glassdoor_career_opp: float (career opportunities sub-score). glassdoor_positive_outlook_pct: int (% positive business outlook). glassdoor_interview_positive_pct: int (% positive interview experience). glassdoor_themes: CSV of 3-5 culture themes.
-Extract from SERP snippets — check both Glassdoor and AmbitionBox results. AmbitionBox (ambitionbox.com) is a primary source for Indian company ratings and often surfaces sub-scores not visible on Glassdoor snippets.
-IMPORTANT: Only return data for the Indian company. Discard any results for same-named companies in other countries.`,
+Extract from SERP snippets — check both Glassdoor and AmbitionBox results. AmbitionBox (ambitionbox.com) is a primary source for Indian company ratings and often surfaces sub-scores not visible on Glassdoor snippets.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} employee rating reviews work culture career site:glassdoor.co.in OR site:ambitionbox.com" — return glassdoor JSON from snippets for the Indian company ${co}.`
@@ -71,7 +68,7 @@ IMPORTANT: Only return data for the Indian company. Discard any results for same
   },
 
   funding: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with the character \`{\` and end with \`}\`. Do NOT write any introductory sentences, narrative text, synthesis, analysis, markdown headers, or code blocks. Output ONLY the raw JSON object — nothing else.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do up to 2 web searches to find comprehensive funding history for the specified Indian startup.
 Search 1: target crunchbase.com or tracxn.com for structured round-by-round data.
@@ -121,10 +118,9 @@ Only add rounds that you actually found in search results. Add as many rounds as
   },
 
   products: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do up to 2 web searches. Search 1: target the company's own website or product pages. Search 2 (if product details are sparse): broaden to news/tech coverage of the company's product features.
-You MUST return a JSON object regardless of search results.
 Return ONLY: {"raw_fields":[{"field_name":"","field_pack":"products","applicability":"applicable","raw_value":"","source_type":"web","source_url":"https://actual-url-found.com","confidence":0.85}]}
 Set source_url to the actual page URL where data was found — never null.
 
@@ -141,8 +137,7 @@ Capture these field_names (field_pack must be "products" for all):
 - pricing_model: subscription|usage|freemium|one_time|enterprise|mixed
 - moat_type: proprietary_data|network_effects|switching_cost|regulatory_moat|deep_tech|brand|none
 
-Only capture products 2–5 if they actually exist. If a field is unknown, set applicability="unknown" and raw_value=null.
-IMPORTANT: Search specifically for the Indian company's products. Discard results for same-named companies elsewhere.`,
+Only capture products 2–5 if they actually exist. If a field is unknown, set applicability="unknown" and raw_value=null.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
@@ -156,7 +151,7 @@ IMPORTANT: Search specifically for the Indian company's products. Discard result
   },
 
   regulatory: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do up to 2 web searches targeting MCA registry sources.
 Search 1: target zaubacorp.com or tofler.in for CIN and incorporation details.
@@ -174,14 +169,7 @@ Return this exact JSON structure — raw_fields MUST be populated with every fie
 
 CIN format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number] — exactly 21 characters.
 Entity fields to capture (field_pack="regulatory"): entity_1_name through entity_6_name — the operating and legal corporate structure only. For each: entity_N_type and entity_N_description (one sentence on what this entity does or its role in the group). Only capture entities you actually found evidence for. STRICT: never output placeholder names.
-entity_N_type allowed values — pick exactly one:
-- brand: a consumer/product brand operated by the legal entity (e.g. a product name or go-to-market brand distinct from the legal name)
-- subsidiary: a legally separate company majority-owned by this startup
-- holding_co: a holding or parent company that owns/controls the startup (majority stake, operational control) — NOT investors or VCs
-- associate: a joint venture or minority-stake affiliate
-- product_brand: a named product line or sub-brand
-CRITICAL: investors, VCs, PE funds, angel investors, and financial shareholders are NEVER entities. Do not capture them under any type. Only capture the startup's own legal entities, brands, subsidiaries, and the holding company that directly owns it (if any).
-Only return data for the Indian company — discard results for same-named entities elsewhere.`,
+entity_N_type: brand|subsidiary|holding_co|associate|product_brand. NEVER capture investors/VCs as entities — only the startup's own legal structure and brands.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const entity = ctx?.legalName || co
@@ -194,7 +182,7 @@ Only return data for the Indian company — discard results for same-named entit
   },
 
   signals: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do up to 2 web searches to find comprehensive financial signals for the specified Indian startup.
 Search 1: target entrackr.com or inc42.com for multi-year revenue, financials, and named clients.
@@ -225,8 +213,7 @@ SIGNALS: latest_news_headline, latest_news_date (YYYY-MM), expansion_target_mark
 PARTNERSHIPS (structured — capture top 4 most significant): partnership_1_partner through partnership_4_partner (company/org name), partnership_1_category through partnership_4_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_4_usecase (what the company does for them), partnership_1_signal through partnership_4_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible.
 QUOTES: key_quote_1_text (most insightful founder/investor quote found), key_quote_1_author, key_quote_2_text, key_quote_2_author
 
-Only include years/clients/awards you actually found. Do not fabricate data.
-IMPORTANT: Only report data for the Indian company. Discard same-named companies elsewhere.`,
+Only include years/clients/awards you actually found. Do not fabricate data.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
@@ -238,12 +225,12 @@ IMPORTANT: Only report data for the Indian company. Discard same-named companies
   },
 
   youtube: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do exactly 1 web search for YouTube videos featuring this company. Return ONLY valid JSON:
 {"youtube":[{"video_title":"","video_url":null,"published_date":null,"video_type":"","channel_name":null,"is_own_channel":false,"key_quote":null,"confidence":0.9}]}
 video_type: founder_on_camera|podcast_feature|product_demo|culture_content|news_coverage
-Capture up to 8 videos. Extract video_url (full youtube.com/watch?v=XXXXXXXXXXX link where XXXXXXXXXXX is the exact 11-character video ID visible in the search result). CRITICAL: if you cannot see the actual 11-character video ID in the search result, set video_url to null — never guess or fabricate an ID. Extract published_date (YYYY-MM-DD if visible) and channel_name from search results. Only include videos about the Indian company.`,
+Capture up to 8 videos. Extract video_url (full youtube.com/watch?v=XXXXXXXXXXX link where XXXXXXXXXXX is the exact 11-character video ID visible in the search result). CRITICAL: if you cannot see the actual 11-character video ID in the search result, set video_url to null — never guess or fabricate an ID. Extract published_date (YYYY-MM-DD if visible) and channel_name from search results.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} founder interview podcast youtube 2024 2025 site:youtube.com" — find YouTube videos featuring the Indian company ${co}. Include founder talks, product demos, news coverage, and podcast appearances.`
@@ -255,7 +242,7 @@ Capture up to 8 videos. Extract video_url (full youtube.com/watch?v=XXXXXXXXXXX 
   },
 
   linkedin: {
-    system: `CRITICAL OUTPUT FORMAT: Your response MUST begin with \`{\` and end with \`}\`. No text before or after the JSON. No markdown. No explanation.
+    system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do exactly 2 web searches:
 Search 1: find public statements, quotes, and interviews by the company founder.
@@ -264,7 +251,7 @@ Search 2: find company announcements, milestones, partnerships, and expansion ne
 Return ONLY valid JSON:
 {"linkedin":[{"pass":8,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: founder_traction_claim|hiring_signal|partnership_announcement|product_launch|culture_post|investor_validation
-Capture up to 8 signals total (mix of founder and company signals). Summarise each post_text in 1–2 sentences with any numbers or claims. Set pass=8 for all entries. Only include content about the Indian company.`,
+Capture up to 8 signals total (mix of founder and company signals). Summarise each post_text in 1–2 sentences with any numbers or claims. Set pass=8 for all entries.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const founderQuery = ctx?.founderName ? `"${ctx.founderName}"` : `"${co}" founder`

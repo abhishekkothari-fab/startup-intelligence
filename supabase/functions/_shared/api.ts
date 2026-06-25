@@ -73,7 +73,7 @@ export async function claudeCall(
     temperature: 0,
   }
   if (maxSearches > 0) {
-    bodyBase.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches }]
+    bodyBase.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: maxSearches, allowed_callers: ["direct"] }]
   }
 
   let totalTokensIn = 0

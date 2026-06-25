@@ -254,9 +254,23 @@ export async function writeStartupPartial(
   partial: Partial<StartupProfile>
 ): Promise<void> {
   const payload: Record<string, unknown> = { last_collected_at: new Date().toISOString() };
+
+  // Compute total from confirmed round amounts — never trust model's aggregated total
+  if (partial.raw_fields?.length) {
+    let sum = 0, found = false;
+    for (const f of partial.raw_fields) {
+      if (/^round_\d+_amount_usd_m$/.test(f.field_name)) {
+        const n = safeNum(f.raw_value);
+        if (n !== null) { sum += n; found = true; }
+      }
+    }
+    if (found) payload.total_raised_usd_m = Math.round(sum * 1000) / 1000;
+  }
+
   for (const field of STARTUP_SCALAR_FIELDS) {
     const val = (partial as Record<string, unknown>)[field];
     if (val === null || val === undefined) continue;
+    if (field === "total_raised_usd_m" && payload.total_raised_usd_m !== undefined) continue;
     if (DATE_FIELDS.has(field)) { const d = safeDate(val); if (d) payload[field] = d; }
     else if (INT_FIELDS.has(field))  { const n = safeInt(val);  if (n !== null) payload[field] = n; }
     else if (NUM_FIELDS.has(field))  { const n = safeNum(val);  if (n !== null) payload[field] = n; }
@@ -338,8 +352,9 @@ export async function appendLinkedInSignals(
     author_name: l.author_name  ?? null,
     author_org:  l.author_org   ?? null,
     author_role: l.author_role  ?? null,
-    signal_type: l.signal_type,
-    post_text:   l.post_text    ?? null,
+    signal_type:     l.signal_type,
+    source_platform: l.source_platform ?? null,
+    post_text:       l.post_text    ?? null,
     post_url:    l.post_url     ?? null,
     post_date:   l.post_date    ?? null,
     confidence:  l.confidence,

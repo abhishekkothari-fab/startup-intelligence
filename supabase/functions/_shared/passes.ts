@@ -38,9 +38,9 @@ auto_tagline: one short punchy sentence (max 10 words) describing what the compa
 Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 {"raw_fields":[{"field_name":"","field_pack":"base","applicability":"applicable","raw_value":"","source_type":"web","source_url":null,"confidence":0.85}]}
 Capture these field_names (field_pack="base" for all):
-Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_*, founder_3_*, founder_4_* if they exist.
+Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_*, founder_3_*, founder_4_*, founder_5_*, founder_6_*, founder_7_* if they exist.
 advisor_count (number), notable_advisors (comma-separated names).
-CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). Only real names; omit background if unknown.`,
+CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). Only real names; omit background if unknown. CRITICAL: only include people currently in their stated role — if any evidence shows a person has left or is a former executive, omit them entirely.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
       return `Search: "${co} ${cname} founders CEO CTO CPO COO CFO executive leadership team C-suite background education" — return founders and CXO raw_fields JSON for the Indian startup ${co}.`
@@ -60,7 +60,8 @@ glassdoor_rating: float (overall). glassdoor_reviews: int (total count). glassdo
 Extract from SERP snippets — check both Glassdoor and AmbitionBox results. AmbitionBox (ambitionbox.com) is a primary source for Indian company ratings and often surfaces sub-scores not visible on Glassdoor snippets.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
-      return `Search: "${co} ${cname} employee rating reviews work culture career site:glassdoor.co.in OR site:ambitionbox.com" — return glassdoor JSON from snippets for the Indian company ${co}.`
+      const coShort = co.replace(/\.(com|in|co\.in|io|ai|net|org)$/i, "")
+      return `Search: "${coShort} ${cname} employee rating reviews work culture career site:glassdoor.com OR site:glassdoor.co.in OR site:ambitionbox.com" — return glassdoor JSON from snippets for the Indian company ${co}.`
     },
     maxTokens: 1000,
     model: "claude-haiku-4-5-20251001",
@@ -106,7 +107,8 @@ Required raw_fields (ALL must have field_pack="funding"):
 
 Currency rules: ₹85 Cr ≈ $1M. Always convert INR to USD for amount_usd_m. Never return null for amount just because it is in INR.
 last_round_type must be one of: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
-Only add rounds that you actually found in search results. Add as many rounds as you find (up to 5). If a field is truly unknown after searching, set applicability="unknown" and raw_value=null.`,
+Only add rounds that you actually found in search results. Add as many rounds as you find (up to 5). If a field is truly unknown after searching, set applicability="unknown" and raw_value=null. Exception: if a round is confirmed to exist but the amount was not publicly disclosed, set raw_value="undisclosed" rather than null.
+total_raised_usd_m must equal the arithmetic sum of ONLY confirmed numeric round_N_amount_usd_m values. Do NOT estimate or guess amounts for undisclosed rounds — exclude them from the total entirely.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
@@ -208,9 +210,9 @@ Return this exact JSON structure:
 Required raw_fields — populate ALL you find evidence for (field_pack="signals" for all):
 FINANCIALS: revenue_fy1_year through revenue_fy6_year (label e.g. "FY25"), revenue_fy1_inr_cr through revenue_fy6_inr_cr (number as string), revenue_cagr_5yr_pct, fy_next_target_inr_cr (next year revenue target if mentioned)
 CLIENTS: client_1_name through client_5_name, client_1_sector through client_5_sector (sector e.g. "BFSI", "Insurance", "E-commerce", "Gaming")
-AWARDS: award_1 through award_5 (name + year in one string)
+AWARDS: award_1 through award_5 (name + year in one string). Include ALL recognitions: industry awards, workplace certifications (Great Place to Work, Best Places to Work, etc.), rankings (Forbes, ET, YS), and competitive wins — not just product/company awards
 SIGNALS: latest_news_headline, latest_news_date (YYYY-MM), expansion_target_market, volume_metric (operational scale e.g. "500M verifications/yr"), market_share (e.g. "60% Video KYC India"), ipo_signal (IPO/pre-IPO language if any)
-PARTNERSHIPS (structured — capture top 4 most significant): partnership_1_partner through partnership_4_partner (company/org name), partnership_1_category through partnership_4_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_4_usecase (what the company does for them), partnership_1_signal through partnership_4_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible.
+PARTNERSHIPS (structured — capture top 4 most significant): partnership_1_partner through partnership_4_partner (company/org name), partnership_1_category through partnership_4_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_4_usecase (what the company does for them), partnership_1_signal through partnership_4_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible. STRICTLY exclude investors, VCs, PE funds, and government funding bodies (e.g. SIDBI) — they belong in the funding pass. Only include commercial relationships: retailers, distributors, technology integrations, B2B clients, channel partners.
 QUOTES: key_quote_1_text (most insightful founder/investor quote found), key_quote_1_author, key_quote_2_text, key_quote_2_author
 
 Only include years/clients/awards you actually found. Do not fabricate data.`,
@@ -218,7 +220,7 @@ Only include years/clients/awards you actually found. Do not fabricate data.`,
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
       const siteHint = ctx?.website ? ` OR site:${new URL(ctx.website).hostname}` : ""
-      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2: "${co}" award OR recognition OR winner OR ranked 2022 2023 2024 site:inc42.com OR site:yourstory.com OR site:linkedin.com${siteHint}\nReturn complete signals JSON for the Indian company ${co}.`
+      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2: "${co}" award OR recognition OR winner OR ranked OR "great place to work" 2022 2023 2024 2025 site:inc42.com OR site:yourstory.com OR site:linkedin.com${siteHint}\nReturn complete signals JSON for the Indian company ${co}.`
     },
     maxSearches: 2,
     maxTokens: 6000,
@@ -250,9 +252,10 @@ Search 1: find public statements, quotes, and interviews by the company founder.
 Search 2: find company announcements, milestones, partnerships, and expansion news.
 
 Return ONLY valid JSON:
-{"linkedin":[{"pass":8,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
+{"linkedin":[{"pass":8,"author_name":null,"author_org":null,"author_role":null,"signal_type":"","source_platform":"","post_text":null,"post_url":null,"post_date":null,"confidence":0.85}]}
 signal_type: founder_traction_claim|hiring_signal|partnership_announcement|product_launch|culture_post|investor_validation
-Capture up to 8 signals total (mix of founder and company signals). Summarise each post_text in 1–2 sentences with any numbers or claims. Set pass=8 for all entries.`,
+source_platform: linkedin|twitter|news (use "linkedin" only if the URL is linkedin.com, "twitter" if x.com or twitter.com, otherwise "news")
+Capture up to 8 signals total (mix of founder and company signals). Summarise each post_text in 1–2 sentences with any numbers or claims. Set pass=8 for all entries. Never emit two items with the same post_url — deduplicate before returning. If author_name is not known, set it to author_org rather than null.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const founderQuery = ctx?.founderName ? `"${ctx.founderName}"` : `"${co}" founder`

@@ -140,6 +140,7 @@ export interface StartupProfile {
     author_org?: string
     author_role?: string
     signal_type: string
+    source_platform?: string
     post_text?: string
     post_url?: string
     post_date?: string

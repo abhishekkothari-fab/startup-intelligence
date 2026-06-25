@@ -25,6 +25,7 @@ export default function HomePage() {
   // Search
   const [search,         setSearch]         = useState("")
   const [debouncedSearch,setDebouncedSearch] = useState("")
+  const [searchFocused,  setSearchFocused]   = useState(false)
 
   // New profile modal state
   const [company,   setCompany]   = useState("")
@@ -95,17 +96,52 @@ export default function HomePage() {
         >+ Profile a startup</button>
       </header>
 
-      <main style={{ flex: 1, maxWidth: 1100, margin: "0 auto", padding: "2rem 1.5rem", width: "100%" }}>
+      {/* ── HERO SEARCH ── */}
+      <section style={{ background: "#fff", borderBottom: "1px solid var(--border)", padding: "3rem 1.5rem 2.25rem" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
+          <p style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "1.5rem" }}>
+            Indian startup intelligence
+          </p>
+          <div style={{ position: "relative" }}>
+            <svg style={{ position: "absolute", left: 22, top: "50%", transform: "translateY(-50%)", color: "var(--text-xs)", pointerEvents: "none" }}
+              width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder="Search any Indian startup…"
+              style={{
+                width: "100%",
+                border: `2px solid ${searchFocused ? "var(--navy)" : "var(--border-md)"}`,
+                borderRadius: 999,
+                padding: "15px 24px 15px 52px",
+                fontSize: 16,
+                outline: "none",
+                boxShadow: searchFocused ? "0 4px 20px rgba(30,58,95,0.12)" : "0 2px 8px rgba(0,0,0,0.06)",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+                background: "#fff",
+                color: "var(--text-h)",
+              }}
+            />
+          </div>
+          <p style={{ marginTop: "1rem", fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
+            {total > 0
+              ? debouncedSearch
+                ? `${total} result${total !== 1 ? "s" : ""} for "${debouncedSearch}"`
+                : `${total} startup${total !== 1 ? "s" : ""} indexed`
+              : ""}
+          </p>
+        </div>
+      </section>
+
+      <main style={{ flex: 1, maxWidth: 1100, margin: "0 auto", padding: "1.5rem", width: "100%" }}>
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 10, marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            type="text"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Search companies…"
-            style={{ ...selStyle, minWidth: 200, cursor: "text", outline: "none" }}
-          />
           <select value={stage} onChange={e => { setStage(e.target.value); setPage(1) }}
             style={selStyle}>
             {STAGES.map(s => <option key={s} value={s}>{s ? S[s]||s : "All stages"}</option>)}

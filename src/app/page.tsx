@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
+import { createClient } from "@/lib/supabase-auth"
 
 const STAGES    = ["", "pre_seed", "seed", "series_a", "series_b_plus", "growth"]
 const INDUSTRIES = ["", "BFSI", "AI_Infra", "D2C", "Health", "Logistics", "EdTech_HRTech"]
@@ -86,14 +87,16 @@ export default function HomePage() {
           }}>SI</div>
           <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Startup Intelligence</span>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)",
-            color: "#fff", borderRadius: 6, padding: "6px 14px",
-            fontSize: 13, cursor: "pointer", fontWeight: 500
-          }}
-        >+ Profile a startup</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: 500 }}
+          >+ Profile a startup</button>
+          <button
+            onClick={async () => { await createClient().auth.signOut(); router.push("/login") }}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
+          >Sign out</button>
+        </div>
       </header>
 
       {/* ── HERO SEARCH ── */}

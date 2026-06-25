@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import { getStartup, getJob, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
+import { createClient } from "@/lib/supabase-auth"
 
 function str(v: unknown): string {
   if (v === null || v === undefined) return ""
@@ -225,6 +226,10 @@ export default function ProfilePage({
           <div style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 100, padding: "4px 12px", fontFamily: "var(--mono)", fontSize: 12, fontWeight: 500, color: "#fff" }}>
             Score: <span style={{ fontWeight: 700, color: "#fbbf24" }}>{score}</span> / 100
           </div>
+          <button
+            onClick={async () => { await createClient().auth.signOut(); router.push("/login") }}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", borderRadius: 6, padding: "5px 11px", fontSize: 12, cursor: "pointer" }}
+          >Sign out</button>
         </div>
       </header>
 

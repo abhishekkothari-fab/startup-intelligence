@@ -22,33 +22,43 @@ export default function HomePage() {
   const [industry,setIndustry]= useState("")
   const [sort,    setSort]    = useState("composite_score")
 
+  // Search
+  const [search,         setSearch]         = useState("")
+  const [debouncedSearch,setDebouncedSearch] = useState("")
+
   // New profile modal state
-  const [company,  setCompany]  = useState("")
-  const [showModal,setShowModal]= useState(false)
-  const [jobStatus,setJobStatus]= useState<string | null>(null)
-  const [jobPct,   setJobPct]   = useState(0)
-  const [triggering,setTriggering]=useState(false)
-  const [error,    setError]    = useState("")
+  const [company,   setCompany]   = useState("")
+  const [showModal, setShowModal] = useState(false)
+  const [jobStatus, setJobStatus] = useState<string | null>(null)
+  const [jobPct,    setJobPct]    = useState(0)
+  const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
+  const [triggering,setTriggering]= useState(false)
+  const [error,     setError]     = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => {
     setLoading(true)
-    getStartups({ page, stage: stage||undefined, industry: industry||undefined, sort })
+    getStartups({ page, stage: stage||undefined, industry: industry||undefined, sort, search: debouncedSearch||undefined })
       .then(r => { setRows(r.data); setTotal(r.total) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [page, stage, industry, sort])
+  }, [page, stage, industry, sort, debouncedSearch])
 
   async function handleTrigger() {
     if (!company.trim()) return
-    setTriggering(true); setError(""); setJobStatus("queued"); setJobPct(0)
+    setTriggering(true); setError(""); setJobStatus("queued"); setJobPct(0); setJobPasses(null)
     try {
       const job = await triggerProfile(company.trim())
       if (job.cached && job.startup_id) {
         router.push(`/profile/${job.startup_id}`)
         return
       }
-      const startupId = await pollJob(job.job_id, (pct, status) => {
-        setJobPct(pct); setJobStatus(status)
+      const startupId = await pollJob(job.job_id, (pct, status, j) => {
+        setJobPct(pct); setJobStatus(status); setJobPasses(j.passes ?? null)
       })
       router.push(`/profile/${startupId}?job_id=${job.job_id}`)
     } catch (e: unknown) {
@@ -89,6 +99,13 @@ export default function HomePage() {
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 10, marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="text"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            placeholder="Search companies…"
+            style={{ ...selStyle, minWidth: 200, cursor: "text", outline: "none" }}
+          />
           <select value={stage} onChange={e => { setStage(e.target.value); setPage(1) }}
             style={selStyle}>
             {STAGES.map(s => <option key={s} value={s}>{s ? S[s]||s : "All stages"}</option>)}
@@ -225,7 +242,7 @@ export default function HomePage() {
                     width: `${jobPct}%`, transition: "width 0.5s ease", borderRadius: 6
                   }}/>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
                   <span style={{ fontSize: 12, color: "var(--text-s)" }}>
                     {jobStatus === "completed" ? "Complete — redirecting…" :
                      jobStatus === "running"   ? "Running 9-pass research…" : "Queued…"}
@@ -234,6 +251,25 @@ export default function HomePage() {
                     {jobPct}%
                   </span>
                 </div>
+                {jobPasses && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                    {["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin"].map(p => {
+                      const done = jobPasses.completed.includes(p)
+                      const fail = jobPasses.failed.includes(p)
+                      return (
+                        <div key={p} style={{
+                          fontSize: 11, fontFamily: "var(--mono)", padding: "5px 8px", borderRadius: 5,
+                          textAlign: "center", textTransform: "capitalize",
+                          background: done ? "var(--green-lt)" : fail ? "var(--red-lt)" : "var(--bg-soft)",
+                          color: done ? "var(--green)" : fail ? "var(--red)" : "var(--text-xs)",
+                          border: `1px solid ${done ? "var(--green-bd)" : fail ? "var(--red-bd)" : "var(--border)"}`,
+                        }}>
+                          {done ? "✓ " : fail ? "✗ " : "○ "}{p}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

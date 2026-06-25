@@ -18,6 +18,11 @@ export interface Job {
   profile_url?:  string
   error_message?: string
   cached?:       boolean
+  passes?: {
+    completed: string[]
+    failed:    string[]
+    pending:   string[]
+  }
 }
 
 export interface StartupRow {
@@ -148,14 +153,14 @@ export async function getJob(jobId: string): Promise<Job> {
 
 export async function pollJob(
   jobId: string,
-  onProgress: (pct: number, status: string) => void,
+  onProgress: (pct: number, status: string, job: Job) => void,
   intervalMs = 5000
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const tick = async () => {
       try {
         const job = await getJob(jobId)
-        onProgress(job.progress_pct, job.status)
+        onProgress(job.progress_pct, job.status, job)
         if (job.startup_id) return resolve(job.startup_id)
         if (job.status === "failed") return reject(new Error(job.error_message ?? "Research failed"))
         setTimeout(tick, intervalMs)
@@ -183,6 +188,7 @@ export async function getStartups(params?: {
   stage?:    string
   industry?: string
   sort?:     string
+  search?:   string
 }): Promise<{ data: StartupRow[]; total: number; pages: number }> {
   const qs = new URLSearchParams()
   if (params?.page)     qs.set("page",     String(params.page))
@@ -190,6 +196,7 @@ export async function getStartups(params?: {
   if (params?.stage)    qs.set("stage",    params.stage)
   if (params?.industry) qs.set("industry", params.industry)
   if (params?.sort)     qs.set("sort",     params.sort)
+  if (params?.search)   qs.set("search",   params.search)
   const res = await fetch(`${BASE}/get-startups?${qs}`, { headers: headers() })
   if (!res.ok) throw new Error(`Leaderboard fetch failed: ${await res.text()}`)
   return res.json()

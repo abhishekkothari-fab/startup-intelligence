@@ -752,6 +752,24 @@ export default function ProfilePage({
           <SecHeader n="11" title="Scorecard" />
           {!sc ? <Empty>No score data yet.</Empty> : (
             <>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "2rem", gap: "0.5rem" }}>
+                <div style={{ position: "relative", width: 144, height: 144 }}>
+                  <svg width="144" height="144" style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx="72" cy="72" r="60" fill="none" stroke="var(--border)" strokeWidth="10" />
+                    <circle ref={ringRef} cx="72" cy="72" r="60" fill="none"
+                      stroke={score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)"}
+                      strokeWidth="10" strokeLinecap="round" />
+                  </svg>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ fontFamily: "var(--serif)", fontSize: 40, fontWeight: 700, lineHeight: 1,
+                      color: score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)" }}>
+                      {score}
+                    </div>
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>/ 100</div>
+                  </div>
+                </div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-s)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Composite Score</div>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
                 {([
                   ["Founder Quality",    sc.dim_founder,  sc.w_founder,  "var(--navy)"],

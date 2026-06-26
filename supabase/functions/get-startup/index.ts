@@ -37,6 +37,18 @@ serve(async (req) => {
   if (e1) return json({ error: e1.message }, e1.code === "PGRST116" ? 404 : 500);
   if (e2 || e3 || e4 || e5) return json({ error: (e2 || e3 || e4 || e5)?.message }, 500);
 
+  // Log which authenticated user fetched this profile (fire-and-forget).
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader) {
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    supabase.auth.getUser(token).then(({ data }) => {
+      const email = data?.user?.email;
+      if (email) {
+        supabase.from("startup_views").insert({ startup_id: id, viewed_by: email }).then(() => {});
+      }
+    });
+  }
+
   return json({
     startup,
     latest_score: scores?.[0] ?? null,

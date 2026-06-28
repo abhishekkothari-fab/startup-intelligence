@@ -15,42 +15,56 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   Deno.exit(1)
 }
 
-const company = Deno.args[0]
-const country  = Deno.args[1] ?? "IN"
-const extraJson = Deno.args[2] ? JSON.parse(Deno.args[2]) : {}
+const jobIdFlag = Deno.args.indexOf("--job-id")
+const existingJobId = jobIdFlag !== -1 ? Deno.args[jobIdFlag + 1] : null
 
-if (!company) {
-  console.error("Usage: deno run --allow-net --allow-env scripts/test-profile.ts <company> [country] [extraJsonParams]")
+const company   = existingJobId ? null : Deno.args[0]
+const country   = existingJobId ? "IN"  : (Deno.args[1] ?? "IN")
+const extraJson = existingJobId ? {}    : (Deno.args[2] ? JSON.parse(Deno.args[2]) : {})
+
+if (!existingJobId && !company) {
+  console.error("Usage:")
+  console.error("  deno run --allow-net --allow-env scripts/test-profile.ts <company> [country] [extraJsonParams]")
+  console.error("  deno run --allow-net --allow-env scripts/test-profile.ts --job-id <job_id>")
   console.error('  e.g. test-profile.ts "Razorpay" IN \'{"only_passes":["overview","glassdoor"],"force_haiku":true}\'')
   Deno.exit(1)
 }
 
-// ── Trigger the job ───────────────────────────────────────────────
-const label = Object.keys(extraJson).length ? ` [${JSON.stringify(extraJson)}]` : ""
-console.log(`\nProfiling: ${company} (${country})${label}`)
-const res = await fetch(`${SUPABASE_URL}/functions/v1/profile-startup`, {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ company, country, ...extraJson }),
-})
+let job_id: string
 
-if (!res.ok) {
-  console.error("Failed to start job:", await res.text())
-  Deno.exit(1)
+if (existingJobId) {
+  job_id = existingJobId
+  console.log(`\nAttaching to job: ${job_id}`)
+  console.log("Waiting for updates via Realtime...\n")
+} else {
+  // ── Trigger the job ─────────────────────────────────────────────
+  const label = Object.keys(extraJson).length ? ` [${JSON.stringify(extraJson)}]` : ""
+  console.log(`\nProfiling: ${company} (${country})${label}`)
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/profile-startup`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ company, country, ...extraJson }),
+  })
+
+  if (!res.ok) {
+    console.error("Failed to start job:", await res.text())
+    Deno.exit(1)
+  }
+
+  const { job_id: jid, status: initialStatus, cached } = await res.json()
+  job_id = jid
+
+  if (cached || initialStatus === "completed") {
+    console.log(`✓ Cached result — job_id: ${job_id}`)
+    Deno.exit(0)
+  }
+
+  console.log(`job_id:  ${job_id}`)
+  console.log("Waiting for updates via Realtime...\n")
 }
-
-const { job_id, status: initialStatus, cached } = await res.json()
-
-if (cached || initialStatus === "completed") {
-  console.log(`✓ Cached result — job_id: ${job_id}`)
-  Deno.exit(0)
-}
-
-console.log(`job_id:  ${job_id}`)
-console.log("Waiting for updates via Realtime...\n")
 
 // ── Subscribe to Realtime ─────────────────────────────────────────
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)

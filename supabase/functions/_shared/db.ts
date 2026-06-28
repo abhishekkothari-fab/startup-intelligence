@@ -110,7 +110,23 @@ export async function finalizeJob(
   const totalTokensOut = entries.reduce((s, v) => s + (v.tokens_out ?? 0) + (v.prior_tokens_out ?? 0), 0);
   const passesCompleted = entries.filter(v => v.status === "completed").length;
   const passesFailed    = entries.filter(v => v.status === "failed").length;
-  const totalFieldsWritten = Object.values(opts.passFieldCounts).reduce((s, n) => s + n, 0);
+
+  // passFieldCounts is wave-local and loses counts from earlier waves; query DB for ground truth.
+  let passFieldCounts = opts.passFieldCounts;
+  let totalFieldsWritten = Object.values(passFieldCounts).reduce((s, n) => s + n, 0);
+  if (opts.startupId) {
+    const { data: rfRows } = await supabase
+      .from("raw_fields")
+      .select("field_pack")
+      .eq("startup_id", opts.startupId);
+    if (rfRows && rfRows.length > 0) {
+      passFieldCounts = {};
+      for (const { field_pack } of rfRows) {
+        passFieldCounts[field_pack] = (passFieldCounts[field_pack] ?? 0) + 1;
+      }
+      totalFieldsWritten = rfRows.length;
+    }
+  }
 
   // Blended cost estimate: products/haiku ~20% of tokens, rest Sonnet.
   // Sonnet: $3/MTok in, $15/MTok out.  Haiku: $0.80/MTok in, $4/MTok out.
@@ -132,7 +148,7 @@ export async function finalizeJob(
       estimated_cost_usd:   estimatedCostUsd,
       passes_completed:     passesCompleted,
       passes_failed:        passesFailed,
-      pass_field_counts:    opts.passFieldCounts,
+      pass_field_counts:    passFieldCounts,
       total_fields_written: totalFieldsWritten,
       waves_fired:          opts.wavesFired,
       retry_attempted:      opts.retryAttempted,

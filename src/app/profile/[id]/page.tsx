@@ -62,6 +62,7 @@ export default function ProfilePage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [researching, setResearching] = useState(!!job_id)
+  const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [activeSection, setActiveSection] = useState("s01")
   const [activeProd, setActiveProd] = useState(0)
   const ringRef = useRef<SVGCircleElement>(null)
@@ -72,11 +73,17 @@ export default function ProfilePage({
   useEffect(() => { fetchProfile() }, [id])
 
   useEffect(() => {
+    if (!job_id) return
+    getJob(job_id).then(j => { if (j.passes) setJobPasses(j.passes) }).catch(() => {})
+  }, [job_id])
+
+  useEffect(() => {
     if (!job_id || !researching) return
     const interval = setInterval(async () => {
       try {
         const [p, j] = await Promise.all([getStartup(id), getJob(job_id)])
         setProfile(p)
+        if (j.passes) setJobPasses(j.passes)
         if (j.status === "completed" || j.status === "failed") {
           setResearching(false)
           clearInterval(interval)
@@ -205,10 +212,14 @@ export default function ProfilePage({
 
       {/* ── TOPBAR ── */}
       <header style={{ position: "fixed", top: 0, left: 0, right: 0, height: 56, background: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 1.5rem", zIndex: 500, boxShadow: "0 1px 0 rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button onClick={() => router.push("/")} style={{ width: 32, height: 32, borderRadius: 6, background: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: "var(--navy)", letterSpacing: "-0.3px", flexShrink: 0 }}>
-            {brandInitials}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => router.push("/")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.75)", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            ← Leaderboard
           </button>
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.15)", flexShrink: 0 }} />
+          <div style={{ width: 28, height: 28, borderRadius: 5, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700, color: "var(--navy)", letterSpacing: "-0.3px", flexShrink: 0 }}>
+            {brandInitials}
+          </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", letterSpacing: "-0.01em" }}>{str(s.brand_name)} Intelligence Dossier</div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>
@@ -217,12 +228,6 @@ export default function ProfilePage({
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {researching && (
-            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", display: "inline-block", animation: "pulse 1.5s infinite" }}/>
-              Researching…
-            </span>
-          )}
           <div style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 100, padding: "4px 12px", fontFamily: "var(--mono)", fontSize: 12, fontWeight: 500, color: "#fff" }}>
             Score: <span style={{ fontWeight: 700, color: "#fbbf24" }}>{score}</span> / 100
           </div>
@@ -264,6 +269,33 @@ export default function ProfilePage({
 
       {/* ── MAIN ── */}
       <main style={{ marginLeft: 240, paddingTop: 56 }}>
+
+        {/* ── RESEARCH PROGRESS STRIP ── */}
+        {researching && (
+          <div style={{ position: "sticky", top: 56, zIndex: 300, background: "var(--navy)", borderBottom: "1px solid rgba(255,255,255,0.1)", padding: "0.6rem 2.5rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fbbf24", display: "inline-block", animation: "pulse 1.5s infinite" }}/>
+              Researching…
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin"].map(p => {
+                const done = jobPasses?.completed.includes(p)
+                const fail = jobPasses?.failed.includes(p)
+                return (
+                  <span key={p} style={{
+                    fontSize: 10, fontFamily: "var(--mono)", padding: "3px 7px", borderRadius: 4,
+                    textTransform: "capitalize",
+                    background: done ? "rgba(34,197,94,0.15)" : fail ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)",
+                    color: done ? "#4ade80" : fail ? "#f87171" : "rgba(255,255,255,0.35)",
+                    border: `1px solid ${done ? "rgba(34,197,94,0.3)" : fail ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.12)"}`,
+                  }}>
+                    {done ? "✓ " : fail ? "✗ " : "○ "}{p}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── S01 KEY METRICS ── */}
         <section data-sec="s01" id="s01" style={SEC}>

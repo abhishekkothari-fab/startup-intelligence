@@ -1,6 +1,7 @@
 // supabase/functions/_shared/passes.ts
 
-import type { PassName } from "./types.ts"
+import type { PassName, StartupProfile } from "./types.ts"
+import { buildInsightsContext } from "./utils.ts"
 
 interface PassSpec {
   system: string
@@ -9,6 +10,7 @@ interface PassSpec {
   maxSearches?: number  // defaults to 1
   model?: string  // defaults to claude-sonnet-4-6; use Haiku for lighter passes
   timeoutMs?: number  // per-pass wall-clock cap; defaults to 140_000
+  buildContext?: (merged: Partial<StartupProfile>) => string  // overrides buildKnownContext when set
 }
 
 export const PASS_SPECS: Record<PassName, PassSpec> = {
@@ -265,5 +267,31 @@ Capture up to 8 signals total (mix of founder and company signals). Summarise ea
     maxSearches: 2,
     model: "claude-haiku-4-5-20251001",
     timeoutMs: 90_000,
+  },
+
+  insights: {
+    system: `JSON only. Start with { end with }.
+
+You are a senior VC analyst writing a briefing note on an Indian startup. All research data has been provided below — do NOT search the web.
+
+Return ONLY valid JSON:
+{"insights":{"thesis":"","moat":"","risks":["","",""],"key_questions":["","",""],"bull_case":"","bear_case":"","comparable":""}}
+
+Field guidance:
+thesis: 2-3 sentences framing the investment opportunity — what they do, why now, why them.
+moat: 1-2 sentences on defensibility — proprietary data, switching costs, network effects, regulation, brand. Be honest if moat is weak.
+risks: exactly 3 strings, most important first. Be specific — use numbers and company-specific facts, not generic VC risks.
+key_questions: exactly 3 due-diligence questions a lead investor should demand answers to before writing a cheque.
+bull_case: 1-2 sentences on the best-case outcome if product, market, and team all execute perfectly.
+bear_case: 1-2 sentences on the most likely failure mode — be blunt.
+comparable: one comparable company or archetype (can be global) and the single most important similarity and difference.
+
+Be direct and specific. Use numbers from the data where they support a point. Avoid generic phrases ("massive TAM", "strong team", "unique solution") — every sentence must earn its place.`,
+    user: (co) => `Synthesise the following research on ${co} and return the insights JSON:`,
+    buildContext: buildInsightsContext,
+    maxTokens: 1200,
+    maxSearches: 0,
+    model: "claude-sonnet-4-6",
+    timeoutMs: 40_000,
   },
 }

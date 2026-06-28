@@ -3,7 +3,7 @@
 import type { ResearchRequest, StartupProfile, PassName, PassesStatus } from "./types.ts"
 import { PASS_NAMES, PASS_PROGRESS } from "./types.ts"
 import { PASS_SPECS } from "./passes.ts"
-import { raceTimeout, parseJson, mergePartial, buildKnownContext } from "./utils.ts"
+import { raceTimeout, parseJson, mergePartial, buildKnownContext, buildInsightsContext } from "./utils.ts"
 import { claudeCall } from "./api.ts"
 import { computeScores, mockProfile } from "./scoring.ts"
 
@@ -56,9 +56,10 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
   // Minimum remaining ms needed to START a pass. If less remains, defer to next wave
   // by breaking without marking as failed — next wave sees them as not-started and runs them.
   const PASS_MIN_MS: Partial<Record<PassName, number>> = {
-    funding:  90_000,
-    signals: 100_000,
+    funding:   90_000,
+    signals:  100_000,
     linkedin:  50_000,
+    insights:  25_000,
   }
 
   await req.onProgress?.(5, "Starting research")
@@ -72,6 +73,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     ["funding", "products", "regulatory", "youtube"],
     ["signals"],
     ["linkedin"],
+    ["insights"],
   ]
 
   for (const batch of PASS_BATCHES) {
@@ -115,7 +117,9 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
         // Pass merged context — batch-2 uses industry/stage/website; batch-3 uses founderName
         const founderName = merged.raw_fields?.find(f => f.field_name === "founder_1_name")?.raw_value
         const ctx = { industry: merged.auto_industry, stage: merged.auto_stage, founderName, website: merged.website, legalName: merged.legal_name }
-        const userMsg = spec.user(req.company, req.country, ctx) + buildKnownContext(merged)
+        const userMsg = spec.buildContext
+          ? spec.user(req.company, req.country, ctx) + spec.buildContext(merged)
+          : spec.user(req.company, req.country, ctx) + buildKnownContext(merged)
         const controller = new AbortController()
         const combinedSignal = AbortSignal.any([controller.signal, waveAbort.signal])
         let apiError: string | null = null
@@ -235,6 +239,7 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
       composite_score: 28, fields_applicable: 10, fields_collected: 4,
       fields_unknown: 6, fields_not_applicable: 0, data_quality_pct: 40,
     },
+    insights:   merged.insights,
     raw_fields: merged.raw_fields  || [],
     youtube:    merged.youtube     || [],
     linkedin:   merged.linkedin    || [],

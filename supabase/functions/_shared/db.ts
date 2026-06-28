@@ -255,6 +255,7 @@ const STARTUP_SCALAR_FIELDS: (keyof StartupProfile)[] = [
   "glassdoor_rating", "glassdoor_reviews", "glassdoor_recommend",
   "glassdoor_wlb", "glassdoor_culture", "glassdoor_themes",
   "glassdoor_career_opp", "glassdoor_positive_outlook_pct", "glassdoor_interview_positive_pct",
+  "insights",
 ];
 
 const DATE_FIELDS = new Set(["founded_date", "last_round_date"]);

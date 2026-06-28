@@ -36,7 +36,7 @@ const WAVE_PASSES: Record<number, string[]> = {
   5: ["youtube", "signals"],
   6: ["linkedin"],
 }
-const TOTAL_WAVES = 6
+const TOTAL_WAVES = 7
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

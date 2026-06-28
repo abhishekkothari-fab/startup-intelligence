@@ -40,6 +40,65 @@ export function mergePartial(
   return result
 }
 
+// Builds a compact full-profile context block for the insights synthesis pass.
+// Only includes applicable fields with non-null values to keep token count low.
+export function buildInsightsContext(merged: Partial<StartupProfile>): string {
+  const lines: string[] = []
+
+  // Scalars
+  const scalars: [string, unknown][] = [
+    ["Stage",        merged.auto_stage],
+    ["Industry",     merged.auto_industry],
+    ["Biz model",    merged.auto_biz_model],
+    ["Founded",      merged.founded_date],
+    ["HQ",           merged.hq_city],
+    ["Team size",    merged.team_size],
+    ["Website",      merged.website],
+    ["Tagline",      merged.auto_tagline],
+    ["Revenue",      merged.revenue_inr_cr != null ? `₹${merged.revenue_inr_cr} Cr (${merged.revenue_fy ?? ""}) YoY ${merged.revenue_yoy_pct ?? "?"}%` : null],
+    ["Net profit",   merged.net_profit_inr_cr != null ? `₹${merged.net_profit_inr_cr} Cr` : null],
+    ["Profitable",   merged.is_profitable],
+    ["Total raised", merged.total_raised_usd_m != null ? `$${merged.total_raised_usd_m}M` : null],
+    ["Last round",   merged.last_round_type ? `${merged.last_round_type} ${merged.last_round_date ?? ""}`.trim() : null],
+    ["Clients",      merged.client_count],
+    ["Glassdoor",    merged.glassdoor_rating != null ? `${merged.glassdoor_rating}/5 (${merged.glassdoor_reviews ?? "?"} reviews, ${merged.glassdoor_recommend ?? "?"}% recommend)` : null],
+  ]
+  for (const [label, val] of scalars) {
+    if (val !== null && val !== undefined) lines.push(`${label}: ${val}`)
+  }
+
+  // Scores summary
+  if (merged.scores) {
+    const s = merged.scores
+    lines.push(`Scores: founder=${s.dim_founder} traction=${s.dim_traction} capital=${s.dim_capital} product=${s.dim_product} market=${s.dim_market} momentum=${s.dim_momentum} composite=${s.composite_score}`)
+  }
+
+  // Raw fields — applicable only, grouped by pack
+  if (merged.raw_fields?.length) {
+    const byPack: Record<string, string[]> = {}
+    for (const f of merged.raw_fields) {
+      if (f.applicability !== "applicable" || !f.raw_value) continue
+      if (!byPack[f.field_pack]) byPack[f.field_pack] = []
+      byPack[f.field_pack].push(`  ${f.field_name}: ${f.raw_value}`)
+    }
+    for (const [pack, entries] of Object.entries(byPack)) {
+      lines.push(`[${pack}]`)
+      lines.push(...entries)
+    }
+  }
+
+  // Top linkedin signals (key quotes / traction claims only)
+  const usefulSignals = (merged.linkedin ?? [])
+    .filter(s => s.post_text && ["founder_traction_claim", "investor_validation", "partnership_announcement"].includes(s.signal_type))
+    .slice(0, 4)
+  if (usefulSignals.length) {
+    lines.push("[social signals]")
+    for (const s of usefulSignals) lines.push(`  ${s.signal_type}: ${s.post_text}`)
+  }
+
+  return "\n\n--- RESEARCH DATA ---\n" + lines.join("\n")
+}
+
 // Injects already-known scalar facts into subsequent pass prompts so Claude
 // doesn't waste searches re-discovering what prior passes already found.
 export function buildKnownContext(merged: Partial<StartupProfile>): string {

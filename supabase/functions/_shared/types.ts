@@ -15,14 +15,14 @@ export type PassesStatus = Record<string, {
 
 export const PASS_NAMES = [
   "overview", "founders", "glassdoor", "funding",
-  "products", "regulatory", "signals", "youtube", "linkedin"
+  "products", "regulatory", "signals", "youtube", "linkedin", "insights"
 ] as const
 export type PassName = typeof PASS_NAMES[number]
 
 export const PASS_PROGRESS: Record<PassName, number> = {
   overview: 12, founders: 22, glassdoor: 30, funding: 40,
   products: 50, regulatory: 58, youtube: 65, signals: 76,
-  linkedin: 88,
+  linkedin: 88, insights: 96,
 }
 
 export interface ResearchRequest {
@@ -111,6 +111,15 @@ export interface StartupProfile {
     r_nim_pct?: number
     r_car_pct?: number
     r_roe_pct?: number
+  }
+  insights?: {
+    thesis: string
+    moat: string
+    risks: string[]
+    key_questions: string[]
+    bull_case: string
+    bear_case: string
+    comparable: string
   }
   raw_fields: Array<{
     field_name: string

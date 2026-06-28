@@ -187,9 +187,11 @@ export default function ProfilePage({
 
   const clients = [1,2,3,4,5,6,7,8].map(n => ({ name: rv(`client_${n}_name`), sector: rv(`client_${n}_sector`) })).filter(c => c.name)
   const awards = [1,2,3,4,5,6,7,8,9,10].map(n => rv(`award_${n}`)).filter(Boolean)
-  const insights = [1,2,3,4,5,6]
-    .map(n => ({ n: String(n).padStart(2,"0"), tag: rv(`insight_${n}_tag`), title: rv(`insight_${n}_title`), body: rv(`insight_${n}_body`) }))
-    .filter(i => i.title)
+  const vcInsights = s.insights as {
+    thesis?: string; moat?: string; comparable?: string;
+    risks?: string[]; key_questions?: string[];
+    bull_case?: string; bear_case?: string;
+  } | null | undefined
 
   const keyQuoteText    = rv("key_quote_1_text")
   const keyQuoteAuthor  = rv("key_quote_1_author")
@@ -870,23 +872,72 @@ export default function ProfilePage({
 
         {/* ── S11 STRATEGIC INSIGHTS ── */}
         <section data-sec="s11" id="s11" style={{ ...SEC, borderBottom: "none" }}>
-          <SecHeader n="12" title="Strategic Insights" />
-          {insights.length === 0 ? (
-            <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-xs)", fontSize: 14 }}>
-              Strategic insights require a synthesis pass. Re-profile with <code style={{ fontFamily: "var(--mono)", fontSize: 12, background: "var(--bg-soft)", padding: "1px 5px", borderRadius: 3 }}>only_passes: [&quot;insights&quot;]</code> once implemented.
-            </div>
+          <SecHeader n="12" title="Strategic Insights" badge="VC Synthesis" />
+          {!vcInsights?.thesis ? (
+            <Empty>No strategic insights yet. Trigger an insights pass to generate VC-grade analysis.</Empty>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-              {insights.map((ins, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "52px 1fr", gap: "1.25rem", padding: "1.25rem 1.5rem", borderBottom: i < insights.length - 1 ? "1px solid var(--border)" : "none", background: "#fff", alignItems: "start" }}>
-                  <div style={{ fontFamily: "var(--serif)", fontSize: 30, fontWeight: 700, color: "var(--border-md)", lineHeight: 1 }}>{ins.n}</div>
-                  <div>
-                    {ins.tag && <span style={{ display: "inline-block", fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, marginBottom: "0.5rem", background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>{ins.tag}</span>}
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-h)", lineHeight: 1.45, marginBottom: "0.5rem" }}>{ins.title}</div>
-                    <div style={{ fontSize: 13, color: "var(--text-s)", lineHeight: 1.7 }}>{ins.body}</div>
-                  </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+
+              {/* Thesis */}
+              <div style={{ background: "var(--navy)", borderRadius: 8, padding: "1.5rem 1.75rem" }}>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,255,255,0.45)", marginBottom: "0.625rem", fontWeight: 500 }}>Investment Thesis</div>
+                <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.75, margin: 0, fontWeight: 400 }}>{vcInsights.thesis}</p>
+              </div>
+
+              {/* Moat + Comparable */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "0.5rem", fontWeight: 500 }}>Moat</div>
+                  <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7, margin: 0 }}>{vcInsights.moat}</p>
                 </div>
-              ))}
+                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "0.5rem", fontWeight: 500 }}>Comparable</div>
+                  <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7, margin: 0 }}>{vcInsights.comparable}</p>
+                </div>
+              </div>
+
+              {/* Bull / Bear */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div style={{ background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--green)", marginBottom: "0.5rem", fontWeight: 500 }}>Bull Case</div>
+                  <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7, margin: 0 }}>{vcInsights.bull_case}</p>
+                </div>
+                <div style={{ background: "var(--red-lt)", border: "1px solid var(--red-bd)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--red)", marginBottom: "0.5rem", fontWeight: 500 }}>Bear Case</div>
+                  <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7, margin: 0 }}>{vcInsights.bear_case}</p>
+                </div>
+              </div>
+
+              {/* Risks + Key Questions */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                {vcInsights.risks && vcInsights.risks.length > 0 && (
+                  <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "0.875rem", fontWeight: 500 }}>Key Risks</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      {vcInsights.risks.map((r, i) => (
+                        <div key={i} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: "var(--red)", flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                          <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.65, margin: 0 }}>{r}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {vcInsights.key_questions && vcInsights.key_questions.length > 0 && (
+                  <div style={{ background: "var(--amber-lt)", border: "1px solid var(--amber-bd)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--amber)", marginBottom: "0.875rem", fontWeight: 500 }}>Due Diligence Questions</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      {vcInsights.key_questions.map((q, i) => (
+                        <div key={i} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: "var(--amber)", flexShrink: 0, marginTop: 1 }}>Q{i + 1}</span>
+                          <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.65, margin: 0 }}>{q}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </section>

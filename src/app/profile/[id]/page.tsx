@@ -911,15 +911,15 @@ export default function ProfilePage({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 2rem" }}>
                   {([
                     ["Revenue CAGR (3yr)",    sc.r_traction_velocity    ? `${sc.r_traction_velocity}%`                                                                                      : null],
-                    ["Burn Multiple",         sc.r_funding_velocity     ? `${sc.r_funding_velocity}x`                                                                                    : null],
-                    ["Rev per Head",          sc.r_capital_efficiency   ? `₹${sc.r_capital_efficiency}L`                                                                                 : null],
-                    ["ACV Proxy",             sc.r_team_leverage        ? `₹${sc.r_team_leverage}L/client`                                                                               : null],
-                    ["Round Cadence",         sc.r_recognition_momentum ? `${sc.r_recognition_momentum}/yr`                                                                              : null],
-                    ["Last Round Age",        sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult} mo ago`                                                                            : null],
+                    ["Burn Multiple",         sc.r_burn_multiple        ? `${sc.r_burn_multiple}x`                                                                                      : null],
+                    ["Rev per Head",          sc.r_rev_per_head         ? `₹${sc.r_rev_per_head}L`                                                                                      : null],
+                    ["ACV Proxy",             sc.r_acv                  ? `₹${sc.r_acv}L/client`                                                                                        : null],
+                    ["Round Cadence",         sc.r_round_cadence        ? `${sc.r_round_cadence}/yr`                                                                                    : null],
+                    ["Valuation/ARR",         sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult}x`                                                                                 : null],
                     ["Investor Tier",         sc.r_investor_quality     ? (["","Unknown","Govt/Grant","Angel","Tier 2","Tier 1"][sc.r_investor_quality] ?? String(sc.r_investor_quality)) : null],
                     ["Product Lines",         sc.r_product_surface      ? `${sc.r_product_surface} line${sc.r_product_surface > 1 ? "s" : ""}`                                          : null],
                     ["Founder Depth",         sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`                                                                                  : null],
-                    ["Capital Productivity",  sc.r_round_up_ratio       ? `${sc.r_round_up_ratio}% rev/raised`                                                                          : null],
+                    ["Capital Productivity",  sc.r_capital_productivity ? `${sc.r_capital_productivity}% rev/raised`                                                                   : null],
                   ] as [string, string|null][]).map(([k, v]) => (
                     <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0.5rem 0", borderBottom: "1px solid var(--border)", gap: "1rem" }}>
                       <span style={{ fontSize: 12, color: "var(--text-s)" }}>{k}</span>

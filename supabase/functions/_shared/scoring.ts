@@ -2,6 +2,8 @@
 
 import type { StartupProfile } from "./types.ts"
 
+const USD_TO_INR = 83  // update here when exchange rate needs refreshing
+
 // ── Scorecard selection ────────────────────────────────────────────────────
 
 export function selectScorecards(merged: Partial<StartupProfile>): string[] {
@@ -217,6 +219,7 @@ function scoreCapital(fm: Record<string, string>, merged: Partial<StartupProfile
 
   if (tier === "tier1") return 90
   if (tier === "tier2") return 75
+  if (tier === "tier3") return 62
   if (tier === "angel") return 50
   if (tier === "govt")  return 40
 
@@ -285,7 +288,7 @@ function scoreMarket(merged: Partial<StartupProfile>): number {
 function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfile>, scorecard: string): number {
   const rev       = merged.revenue_inr_cr     || 0
   const raisedUsd = merged.total_raised_usd_m || 0
-  const raisedInr = raisedUsd * 83
+  const raisedInr = raisedUsd * USD_TO_INR
   const teamSize  = merged.team_size          || 0
   const prof      = merged.is_profitable
 
@@ -414,7 +417,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   // ── Universal ratios ──────────────────────────────────────────────────────
   const foundedMs = merged.founded_date ? new Date(merged.founded_date).getTime() : 0
   const monthsOp  = foundedMs > 0 ? Math.max(1, (Date.now() - foundedMs) / (30.44 * 24 * 3600 * 1000)) : 0
-  const raisedInr = raisedUsd * 83
+  const raisedInr = raisedUsd * USD_TO_INR
 
   let productSurface = 0
   for (let i = 1; i <= 6; i++) { if (fm[`product_${i}_name`]) productSurface++ }
@@ -438,9 +441,11 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const roundCount         = parseInt(fm["round_count"] || "0")
   const rRoundCadence      = (roundCount > 0 && monthsOp > 0)
     ? Math.round(roundCount / (monthsOp / 12) * 10) / 10 : undefined
-  const lastRoundMs        = merged.last_round_date ? new Date(merged.last_round_date).getTime() : 0
-  const rLastRoundAge      = lastRoundMs > 0
-    ? Math.round((Date.now() - lastRoundMs) / (30.44 * 24 * 3600 * 1000)) : undefined
+  const roundSizeInr       = merged.last_round_size_inr_cr || 0
+  // implied valuation = round size / assumed 18% dilution; multiple = valuation / ARR
+  const rValuationArrMult  = (roundSizeInr > 0 && rev && rev > 0)
+    ? Math.round(roundSizeInr / (0.18 * rev) * 10) / 10
+    : undefined
   const tier               = fm["investor_1_tier"] || ""
   const rInvestorQuality   = tier === "tier1" ? 5 : tier === "tier2" ? 4 : tier === "angel" ? 3
     : tier === "govt" ? 2 : raisedUsd > 0 ? 1 : undefined
@@ -487,15 +492,15 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
       fields_not_applicable: fieldsNotApplicable,
       data_quality_pct:      dq,
       r_traction_velocity:    rRevenueCagr,
-      r_funding_velocity:     rBurnMultiple,
-      r_capital_efficiency:   rRevPerHead,
-      r_team_leverage:        rACV,
-      r_recognition_momentum: rRoundCadence,
-      r_valuation_arr_mult:   rLastRoundAge,
+      r_burn_multiple:        rBurnMultiple,
+      r_rev_per_head:         rRevPerHead,
+      r_acv:                  rACV,
+      r_round_cadence:        rRoundCadence,
+      r_valuation_arr_mult:   rValuationArrMult,
       r_investor_quality:     rInvestorQuality,
       r_product_surface:      rProductSurface,
       r_founder_mkt_fit:      founderDepth,
-      r_round_up_ratio:       rCapitalProductivity,
+      r_capital_productivity: rCapitalProductivity,
     }
   }
 }

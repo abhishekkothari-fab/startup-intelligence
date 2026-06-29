@@ -100,17 +100,17 @@ export interface StartupProfile {
     fields_unknown: number
     fields_not_applicable: number
     data_quality_pct: number
-    r_funding_velocity?: number
+    r_burn_multiple?: number
     r_traction_velocity?: number
     r_founder_mkt_fit?: number
-    r_recognition_momentum?: number
+    r_round_cadence?: number
     r_investor_quality?: number
     r_product_surface?: number
-    r_capital_efficiency?: number
+    r_rev_per_head?: number
     r_valuation_arr_mult?: number
-    r_team_leverage?: number
+    r_acv?: number
     r_grant_equity_ratio?: number
-    r_round_up_ratio?: number
+    r_capital_productivity?: number
     r_gnpa_pct?: number
     r_nim_pct?: number
     r_car_pct?: number

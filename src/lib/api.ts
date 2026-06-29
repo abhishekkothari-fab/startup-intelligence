@@ -187,6 +187,18 @@ export async function getStartup(id: string): Promise<FullProfile> {
   return res.json()
 }
 
+// ── Rescore ──────────────────────────────────────────────────────
+
+export async function rescoreStartup(id: string): Promise<{ composite_score: number; primary_scorecard: string }> {
+  const res = await fetch(`${BASE}/rescore-startup`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ startup_id: id }),
+  })
+  if (!res.ok) throw new Error(`Rescore failed: ${await res.text()}`)
+  return res.json()
+}
+
 // ── Leaderboard ──────────────────────────────────────────────────
 
 export async function getStartups(params?: {

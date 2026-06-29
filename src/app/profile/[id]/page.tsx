@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState, useRef, use } from "react"
 import { useRouter } from "next/navigation"
-import { getStartup, getJob, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
+import { getStartup, getJob, rescoreStartup, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
 
 function str(v: unknown): string {
@@ -65,6 +65,7 @@ export default function ProfilePage({
   const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [activeSection, setActiveSection] = useState("s01")
   const [activeProd, setActiveProd] = useState(0)
+  const [rescoring, setRescoring] = useState(false)
   const ringRef = useRef<SVGCircleElement>(null)
 
   const fetchProfile = () =>
@@ -128,6 +129,18 @@ export default function ProfilePage({
   const raw   = profile.raw_summary
   const score = sc?.composite_score ?? 0
   const rv    = (name: string) => rawVal(raw, name)
+
+  async function handleRescore() {
+    setRescoring(true)
+    try {
+      await rescoreStartup(id)
+      await fetchProfile()
+    } catch (e) {
+      console.error("Rescore failed:", e)
+    } finally {
+      setRescoring(false)
+    }
+  }
 
   const scrollTo = (sectionId: string) => (e: React.MouseEvent) => {
     e.preventDefault()
@@ -790,7 +803,19 @@ export default function ProfilePage({
 
         {/* ── S03 SCORECARD ── */}
         <section data-sec="s03" id="s03" style={SEC}>
-          <SecHeader n="11" title="Scorecard" />
+          <SecHeader n="11" title="Scorecard" action={
+            <button onClick={handleRescore} disabled={rescoring} style={{
+              fontFamily: "var(--mono)", fontSize: 10, fontWeight: 500,
+              textTransform: "uppercase", letterSpacing: "0.06em",
+              padding: "4px 10px", borderRadius: 5, cursor: rescoring ? "default" : "pointer",
+              border: "1px solid var(--border-md)",
+              background: rescoring ? "var(--bg-soft)" : "#fff",
+              color: rescoring ? "var(--text-xs)" : "var(--text-s)",
+              transition: "all 0.15s",
+            }}>
+              {rescoring ? "Rescoring…" : "↺ Rescore"}
+            </button>
+          } />
           {!sc ? <Empty>No score data yet.</Empty> : (
             <>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "2rem", gap: "0.5rem" }}>
@@ -986,13 +1011,14 @@ export default function ProfilePage({
 
 // ── UTILITY COMPONENTS ────────────────────────────────────────────
 
-function SecHeader({ n, title, badge }: { n: string; title: string; badge?: string }) {
+function SecHeader({ n, title, badge, action }: { n: string; title: string; badge?: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
       <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 500, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)", borderRadius: 4, padding: "3px 8px", letterSpacing: "0.06em" }}>{n}</span>
       <h2 style={{ fontFamily: "var(--serif)", fontSize: 20, fontWeight: 700, color: "var(--text-h)", margin: 0 }}>{title}</h2>
       <div style={{ flex: 1, height: 1, background: "var(--border)" }}/>
       {badge && <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--amber)", background: "var(--amber-lt)", border: "1px solid var(--amber-bd)", borderRadius: 4, padding: "2px 7px" }}>{badge}</span>}
+      {action}
     </div>
   )
 }

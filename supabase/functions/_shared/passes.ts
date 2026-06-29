@@ -56,18 +56,22 @@ CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N
   glassdoor: {
     system: `JSON only. Start with { end with }.
 
-Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON (null for unknown):
+Startup research analyst. Do up to 2 web searches. Return ONLY valid JSON (null for unknown):
 {"glassdoor_rating":null,"glassdoor_reviews":null,"glassdoor_recommend":null,"glassdoor_wlb":null,"glassdoor_culture":null,"glassdoor_career_opp":null,"glassdoor_positive_outlook_pct":null,"glassdoor_interview_positive_pct":null,"glassdoor_themes":null}
 glassdoor_rating: float (overall). glassdoor_reviews: int (total count). glassdoor_recommend: int (% who recommend). glassdoor_wlb: float (work-life balance sub-score). glassdoor_culture: float (culture & values sub-score). glassdoor_career_opp: float (career opportunities sub-score). glassdoor_positive_outlook_pct: int (% positive business outlook). glassdoor_interview_positive_pct: int (% positive interview experience). glassdoor_themes: CSV of 3-5 culture themes.
-Extract from SERP snippets — check both Glassdoor and AmbitionBox results. AmbitionBox (ambitionbox.com) is a primary source for Indian company ratings and often surfaces sub-scores not visible on Glassdoor snippets.`,
-    user: (co, country) => {
+Search 1: target site:glassdoor.com OR site:glassdoor.co.in for the overall rating and review count.
+Search 2 (only if overall rating not found): target site:ambitionbox.com — a primary source for Indian company sub-scores.
+Extract from SERP snippets. The overall glassdoor_rating is the aggregate star score (e.g. 3.8 out of 5) shown on the company's Glassdoor overview page.`,
+    user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const coShort = co.replace(/\.(com|in|co\.in|io|ai|net|org)$/i, "")
-      return `Search: "${coShort} ${cname} employee rating reviews work culture career site:glassdoor.com OR site:glassdoor.co.in OR site:ambitionbox.com" — return glassdoor JSON from snippets for the Indian company ${co}.`
+      const websiteHint = ctx?.website ? ` (website: ${ctx.website})` : ""
+      return `Search 1: "${coShort} ${cname} employee reviews rating" site:glassdoor.com OR site:glassdoor.co.in — get the overall Glassdoor rating and review count for ${co}${websiteHint}.\nSearch 2 (if overall rating not found): "${coShort} ${cname} employee rating reviews" site:ambitionbox.com — get sub-scores.`
     },
     maxTokens: 1000,
+    maxSearches: 2,
     model: "claude-haiku-4-5-20251001",
-    timeoutMs: 40_000,
+    timeoutMs: 60_000,
   },
 
   funding: {

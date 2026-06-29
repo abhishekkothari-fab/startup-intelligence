@@ -683,14 +683,16 @@ export default function ProfilePage({
         {/* ── S10 GLASSDOOR ── */}
         <section data-sec="s10" id="s10" style={SEC}>
           <SecHeader n="09" title="Glassdoor" badge="Pass 3" />
-          {!s.glassdoor_rating ? <Empty>No Glassdoor data collected.</Empty> : (
-            <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
+          {!s.glassdoor_rating && !s.glassdoor_wlb && !s.glassdoor_recommend && !s.glassdoor_themes ? <Empty>No Glassdoor data collected.</Empty> : (
+            <div style={{ display: "grid", gridTemplateColumns: s.glassdoor_rating ? "160px 1fr" : "1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
+              {s.glassdoor_rating && (
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontFamily: "var(--serif)", fontSize: 56, fontWeight: 700, color: "var(--navy)", lineHeight: 1 }}>{str(s.glassdoor_rating)}</div>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", marginTop: 2 }}>out of 5</div>
                 <div style={{ color: "#f59e0b", fontSize: 16, letterSpacing: 2, margin: "6px 0" }}>{"★".repeat(Math.round(num(s.glassdoor_rating)))}{"☆".repeat(5 - Math.round(num(s.glassdoor_rating)))}</div>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>{str(s.glassdoor_reviews)} reviews</div>
               </div>
+              )}
               <div>
                 {!!(s.glassdoor_recommend || s.glassdoor_positive_outlook_pct || s.glassdoor_interview_positive_pct) && (
                   <div style={{ display: "flex", gap: "1.25rem", marginBottom: "1rem", flexWrap: "wrap" }}>

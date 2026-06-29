@@ -685,7 +685,7 @@ export default function ProfilePage({
           <SecHeader n="09" title="Glassdoor" badge="Pass 3" />
           {!s.glassdoor_rating && !s.glassdoor_wlb && !s.glassdoor_recommend && !s.glassdoor_themes ? <Empty>No Glassdoor data collected.</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: s.glassdoor_rating ? "160px 1fr" : "1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
-              {s.glassdoor_rating && (
+              {!!s.glassdoor_rating && (
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontFamily: "var(--serif)", fontSize: 56, fontWeight: 700, color: "var(--navy)", lineHeight: 1 }}>{str(s.glassdoor_rating)}</div>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", marginTop: 2 }}>out of 5</div>

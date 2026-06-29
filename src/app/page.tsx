@@ -8,6 +8,15 @@ const STAGES    = ["", "pre_seed", "seed", "series_a", "series_b_plus", "growth"
 const INDUSTRIES = ["", "BFSI", "AI_Infra", "D2C", "Health", "Logistics", "EdTech_HRTech"]
 const SORTS     = ["composite_score", "revenue_inr_cr", "total_raised_usd_m", "team_size"]
 
+const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  saas:        { label: "B2B SaaS",    color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
+  d2c:         { label: "D2C",         color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
+  marketplace: { label: "Marketplace", color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE" },
+  fintech:     { label: "FinTech",     color: "#059669", bg: "#ECFDF5", border: "#A7F3D0" },
+  deeptech:    { label: "Deep Tech",   color: "#4F46E5", bg: "#EEF2FF", border: "#C7D2FE" },
+  base:        { label: "General",     color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB" },
+}
+
 const S: Record<string, string> = {
   pre_seed: "Pre-seed", seed: "Seed", series_a: "Series A",
   series_b_plus: "Series B+", growth: "Growth"
@@ -177,7 +186,7 @@ export default function HomePage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
-                  {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ",""].map(h => (
+                  {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ","Scorecard",""].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
@@ -206,6 +215,22 @@ export default function HomePage() {
                     </td>
                     <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
                       {r.data_quality_pct ? `${r.data_quality_pct}%` : "—"}
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(r.scorecard_ids ?? (r.primary_scorecard ? [r.primary_scorecard] : [])).map((id: string) => {
+                          const cfg = SCORECARD_STYLE[id] ?? SCORECARD_STYLE.base
+                          return (
+                            <span key={id} style={{ fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600,
+                              textTransform: "uppercase", letterSpacing: "0.07em",
+                              padding: "2px 6px", borderRadius: 3,
+                              background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+                              whiteSpace: "nowrap" }}>
+                              {cfg.label}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </td>
                     <td style={{ ...tdStyle, color: "var(--blue)" }}>View →</td>
                   </tr>

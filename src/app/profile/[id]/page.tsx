@@ -810,15 +810,50 @@ export default function ProfilePage({
                   </div>
                 </div>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-s)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Composite Score</div>
+                {sc.scorecard_ids && sc.scorecard_ids.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                    {sc.scorecard_ids.map(id => {
+                      const cfg = SCORECARD_STYLE[id] ?? SCORECARD_STYLE.base
+                      return (
+                        <span key={id} style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600,
+                          textTransform: "uppercase", letterSpacing: "0.08em",
+                          padding: "3px 9px", borderRadius: 4,
+                          background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                          {cfg.label}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
+
+              {/* Row 1: Team, Traction, Capital, Product */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.875rem", marginBottom: "0.875rem" }}>
                 {([
-                  ["Founder Quality",    sc.dim_founder,  sc.w_founder,  "var(--navy)"],
-                  ["Traction / Revenue", sc.dim_traction, sc.w_traction, "var(--green)"],
-                  ["Capital / Funding",  sc.dim_capital,  sc.w_capital,  "var(--navy)"],
-                  ["Product / Moat",     sc.dim_product,  sc.w_product,  "var(--green)"],
-                  ["Market Opportunity", sc.dim_market,   sc.w_market,   "var(--navy)"],
-                  ["Momentum",           sc.dim_momentum, sc.w_momentum, "var(--navy)"],
+                  ["Team Quality",       sc.dim_team,      sc.w_team,      "var(--navy)"],
+                  ["Traction / Revenue", sc.dim_traction,  sc.w_traction,  "var(--green)"],
+                  ["Capital / Funding",  sc.dim_capital,   sc.w_capital,   "var(--navy)"],
+                  ["Product / Moat",     sc.dim_product,   sc.w_product,   "var(--green)"],
+                ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
+                  <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
+                      <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
+                    </div>
+                    <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ height: "100%", width: val ? `${val}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Row 2: Market, Unit Economics, Momentum */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.875rem", marginBottom: "1.25rem" }}>
+                {([
+                  ["Market Opportunity", sc.dim_market,    sc.w_market,    "var(--navy)"],
+                  ["Unit Economics",     sc.dim_unit_econ, sc.w_unit_econ, "var(--green)"],
+                  ["Momentum",          sc.dim_momentum,  sc.w_momentum,  "var(--navy)"],
                 ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
                   <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
@@ -983,6 +1018,15 @@ function PullQuote({ text, cite }: { text: string; cite?: string }) {
       {cite && <cite style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--navy)", fontWeight: 500, fontStyle: "normal" }}>— {cite}</cite>}
     </div>
   )
+}
+
+const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  saas:        { label: "B2B SaaS",    color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
+  d2c:         { label: "D2C",         color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
+  marketplace: { label: "Marketplace", color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE" },
+  fintech:     { label: "FinTech",     color: "#059669", bg: "#ECFDF5", border: "#A7F3D0" },
+  deeptech:    { label: "Deep Tech",   color: "#4F46E5", bg: "#EEF2FF", border: "#C7D2FE" },
+  base:        { label: "General",     color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB" },
 }
 
 function Empty({ children }: { children: React.ReactNode }) {

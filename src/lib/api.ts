@@ -40,12 +40,15 @@ export interface StartupRow {
   is_profitable?:      boolean
   glassdoor_rating?:   number
   composite_score?:    number
+  dim_team?:           number
   dim_traction?:       number
-  dim_founder?:        number
   dim_capital?:        number
   dim_product?:        number
   dim_market?:         number
+  dim_unit_econ?:      number
   dim_momentum?:       number
+  scorecard_ids?:      string[]
+  primary_scorecard?:  string
   data_quality_pct?:   number
   score_status?:       string
   updated_at?:         string
@@ -53,18 +56,22 @@ export interface StartupRow {
 
 export interface Score {
   composite_score:    number
-  dim_founder:        number
+  dim_team:           number
   dim_traction:       number
   dim_capital:        number
   dim_product:        number
   dim_market:         number
+  dim_unit_econ?:     number
   dim_momentum:       number
-  w_founder?:         number
+  w_team?:            number
   w_traction?:        number
   w_capital?:         number
   w_product?:         number
   w_market?:          number
+  w_unit_econ?:       number
   w_momentum?:        number
+  scorecard_ids?:     string[]
+  primary_scorecard?: string
   data_quality_pct:   number
   fields_applicable?:     number
   fields_collected?:      number

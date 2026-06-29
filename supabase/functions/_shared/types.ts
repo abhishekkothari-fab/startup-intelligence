@@ -78,17 +78,21 @@ export interface StartupProfile {
   glassdoor_interview_positive_pct?: number
   scores: {
     stage: string
-    dim_founder: number
+    scorecard_ids: string[]
+    primary_scorecard: string
+    dim_team: number
     dim_traction: number
     dim_capital: number
     dim_product: number
     dim_market: number
+    dim_unit_econ: number
     dim_momentum: number
-    w_founder: number
+    w_team: number
     w_traction: number
     w_capital: number
     w_product: number
     w_market: number
+    w_unit_econ: number
     w_momentum: number
     composite_score: number
     fields_applicable: number

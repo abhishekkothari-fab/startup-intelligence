@@ -1,8 +1,9 @@
-// supabase/functions/_shared/scoring.ts  —  scoring v5
+// supabase/functions/_shared/scoring.ts  —  scoring v6
 
 import type { StartupProfile } from "./types.ts"
 
-const USD_TO_INR = 83  // update here when exchange rate needs refreshing
+const USD_TO_INR      = 83                // 1 USD in INR — update here when rate changes
+const USD_M_TO_INR_CR = USD_TO_INR / 10  // 1M USD = 8.3 Cr INR
 
 // ── Scorecard selection ────────────────────────────────────────────────────
 
@@ -113,6 +114,26 @@ const MARKET_TAM: Record<string, number> = {
   Marketplace: 70,
 }
 
+// ── Shared helpers ─────────────────────────────────────────────────────────
+
+// Graduated YoY growth bonus — replaces flat +5 across all traction scorecards
+function growthBonus(yoy: number): number {
+  if (yoy >= 300) return 18
+  if (yoy >= 200) return 12
+  if (yoy >= 100) return 7
+  if (yoy >= 50)  return 3
+  return 0
+}
+
+// Tier-1 institution check shared by founder_1, founder_2, and founderDepth ratio
+function isTier1Edu(edu: string): boolean {
+  return edu.includes("iit") || edu.includes("iim") || edu.includes("isb") ||
+    edu.includes("tier1") || edu.includes("stanford") || edu.includes("wharton") ||
+    edu.includes("harvard") || edu.includes("oxford") || edu.includes("mit") ||
+    edu.includes("insead") || edu.includes("caltech") || edu.includes("iisc") ||
+    edu.includes("bits pilani") || edu.includes("nus")
+}
+
 // ── Dimension scorers ──────────────────────────────────────────────────────
 
 function scoreTeam(fm: Record<string, string>): number {
@@ -120,8 +141,7 @@ function scoreTeam(fm: Record<string, string>): number {
 
   // Founder 1
   const edu1 = (fm["founder_1_education"] || "").toLowerCase()
-  if (edu1.includes("iit") || edu1.includes("iim") || edu1.includes("isb") ||
-      edu1.includes("tier1") || edu1.includes("stanford") || edu1.includes("wharton")) s += 12
+  if (isTier1Edu(edu1)) s += 12
   if (fm["founder_1_prior_startup"] === "yes") s += 10
   if (fm["founder_1_prior_exit"]    === "yes") s += 20
   const dom1 = parseInt(fm["founder_1_domain_years"] || "0")
@@ -134,7 +154,7 @@ function scoreTeam(fm: Record<string, string>): number {
   if (fm["founder_2_name"] || fm["founder_2_role"]) {
     s += 8
     const edu2 = (fm["founder_2_education"] || "").toLowerCase()
-    if (edu2.includes("iit") || edu2.includes("iim") || edu2.includes("isb")) s += 5
+    if (isTier1Edu(edu2)) s += 5
     if (fm["founder_2_prior_exit"]    === "yes") s += 8
     if (fm["founder_2_prior_startup"] === "yes") s += 4
   }
@@ -159,17 +179,19 @@ function scoreTraction(fm: Record<string, string>, merged: Partial<StartupProfil
     let s = rev >= 50 ? 90 : rev >= 20 ? 80 : rev >= 5 ? 65 : rev >= 1 ? 50 : rev > 0 ? 35
           : clients > 20 ? 25 : 0
     if (clients > 20 && s < 80) s = Math.min(80, s + 10)
-    if (yoy > 100) s = Math.min(100, s + 5)
-    if (prof)      s = Math.min(100, s + 5)
+    s = Math.min(100, s + growthBonus(yoy))
+    if (prof) s = Math.min(100, s + 5)
     return s
   }
 
   if (scorecard === "d2c") {
-    const primary = gmv > rev ? gmv : rev
+    // Cap GMV at 3× revenue when GMV >> revenue (prevents low-take-rate inflating score)
+    const effectiveGmv = (gmv > 0 && rev > 0 && gmv > 5 * rev) ? 3 * rev : gmv
+    const primary = Math.max(effectiveGmv, rev)
     let s = primary >= 500 ? 90 : primary >= 200 ? 80 : primary >= 100 ? 70 : primary >= 50 ? 60
           : primary >= 20 ? 50 : primary >= 5 ? 38 : primary >= 1 ? 25 : primary > 0 ? 15 : 0
-    if (yoy > 50) s = Math.min(100, s + 5)
-    if (prof)     s = Math.min(100, s + 10)
+    s = Math.min(100, s + growthBonus(yoy))
+    if (prof) s = Math.min(100, s + 10)
     return s
   }
 
@@ -186,11 +208,13 @@ function scoreTraction(fm: Record<string, string>, merged: Partial<StartupProfil
   }
 
   if (scorecard === "marketplace") {
-    const primary = gmv > rev ? gmv : rev
+    // Same GMV haircut: cap at 3× revenue when GMV >> revenue
+    const effectiveGmv = (gmv > 0 && rev > 0 && gmv > 5 * rev) ? 3 * rev : gmv
+    const primary = Math.max(effectiveGmv, rev)
     let s = primary >= 1000 ? 90 : primary >= 500 ? 80 : primary >= 200 ? 68 : primary >= 100 ? 57
           : primary >= 20 ? 42 : primary >= 5 ? 28 : primary > 0 ? 18 : 0
-    if (yoy > 100) s = Math.min(100, s + 5)
-    if (prof)      s = Math.min(100, s + 5)
+    s = Math.min(100, s + growthBonus(yoy))
+    if (prof) s = Math.min(100, s + 5)
     return s
   }
 
@@ -208,8 +232,8 @@ function scoreTraction(fm: Record<string, string>, merged: Partial<StartupProfil
   // base
   let s = rev >= 50 ? 85 : rev >= 25 ? 75 : rev >= 10 ? 65 : rev >= 5 ? 55 : rev >= 1 ? 42
         : rev > 0 ? 28 : clients > 100 ? 20 : 0
-  if (yoy > 100) s = Math.min(100, s + 5)
-  if (prof)      s = Math.min(100, s + 10)
+  s = Math.min(100, s + growthBonus(yoy))
+  if (prof) s = Math.min(100, s + 10)
   return s
 }
 
@@ -232,37 +256,40 @@ function scoreCapital(fm: Record<string, string>, merged: Partial<StartupProfile
   return merged.is_profitable ? 45 : 10
 }
 
-function scoreProduct(fm: Record<string, string>, scorecard: string): number {
+function scoreProduct(fm: Record<string, string>, scorecard: string, stage: string): number {
   const moat    = (fm["has_technical_moat"] || "").startsWith("yes")
   const api     = fm["has_api"]        === "yes"
   const mobile  = fm["has_mobile_app"] === "yes"
   const patents = parseInt(fm["patent_count"]  || "0")
   const prods   = parseInt(fm["product_count"] || "0")
 
+  // Multiple products signal breadth but penalise focus at early stages
+  const prodBonus = prods > 1 ? (stage === "pre_seed" ? 0 : stage === "seed" ? 5 : 10) : 0
+
   if (scorecard === "saas") {
     return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + (patents > 0 ? 10 : 0)
-      + (prods > 1 ? 10 : 0) + (mobile ? 5 : 0))
+      + prodBonus + (mobile ? 5 : 0))
   }
   if (scorecard === "d2c") {
     return Math.min(100, 20 + (moat ? 30 : 0) + (mobile ? 15 : 0)
-      + (prods > 1 ? 10 : 0) + (patents > 0 ? 10 : 0) + (api ? 5 : 0))
+      + prodBonus + (patents > 0 ? 10 : 0) + (api ? 5 : 0))
   }
   if (scorecard === "fintech") {
     return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + (mobile ? 10 : 0)
-      + (patents > 0 ? 10 : 0) + (prods > 1 ? 10 : 0))
+      + (patents > 0 ? 10 : 0) + prodBonus)
   }
   if (scorecard === "marketplace") {
     return Math.min(100, 20 + (moat ? 25 : 0) + (mobile ? 20 : 0) + (api ? 15 : 0)
-      + (prods > 1 ? 10 : 0) + (patents > 0 ? 10 : 0))
+      + prodBonus + (patents > 0 ? 10 : 0))
   }
   if (scorecard === "deeptech") {
     const patentBonus = patents >= 5 ? 25 : patents >= 2 ? 20 : patents > 0 ? 15 : 0
-    return Math.min(100, 15 + (moat ? 35 : 0) + patentBonus + (prods > 1 ? 10 : 0)
+    return Math.min(100, 15 + (moat ? 35 : 0) + patentBonus + prodBonus
       + (api ? 5 : 0) + (mobile ? 5 : 0))
   }
   // base
   return Math.min(100, 25 + (moat ? 30 : 0) + (api ? 15 : 0) + (mobile ? 10 : 0)
-    + (patents > 0 ? 10 : 0) + (prods > 1 ? 10 : 0))
+    + (patents > 0 ? 10 : 0) + prodBonus)
 }
 
 function scoreMarket(merged: Partial<StartupProfile>): number {
@@ -270,10 +297,14 @@ function scoreMarket(merged: Partial<StartupProfile>): number {
   const stage    = merged.auto_stage    || "seed"
   const region   = merged.auto_region   || ""
 
-  let base = 60
+  // Collect all matching TAM values and average — avoids first-match ordering bias
+  const tamMatches: number[] = []
   for (const [key, val] of Object.entries(MARKET_TAM)) {
-    if (industry.toLowerCase().includes(key.toLowerCase())) { base = val; break }
+    if (industry.toLowerCase().includes(key.toLowerCase())) tamMatches.push(val)
   }
+  let base = tamMatches.length > 0
+    ? Math.round(tamMatches.reduce((a, b) => a + b, 0) / tamMatches.length)
+    : 60
 
   // Early stage: higher TAM potential headroom
   if (stage === "pre_seed" || stage === "seed") base = Math.min(95, Math.round(base * 1.05))
@@ -288,7 +319,7 @@ function scoreMarket(merged: Partial<StartupProfile>): number {
 function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfile>, scorecard: string): number {
   const rev       = merged.revenue_inr_cr     || 0
   const raisedUsd = merged.total_raised_usd_m || 0
-  const raisedInr = raisedUsd * USD_TO_INR
+  const raisedInr = raisedUsd * USD_M_TO_INR_CR
   const teamSize  = merged.team_size          || 0
   const prof      = merged.is_profitable
 
@@ -304,8 +335,16 @@ function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfil
 
   let s = 20
 
-  // Profitability — single biggest signal
-  if (prof) s += 30
+  // Profitability — graduated by net margin when available, binary fallback otherwise
+  const netProfit = merged.net_profit_inr_cr
+  if (netProfit !== undefined && netProfit !== null && rev > 0) {
+    const margin = netProfit / rev
+    if      (margin >= 0.15) s += 30
+    else if (margin >= 0.05) s += 20
+    else if (margin >= 0.01) s += 10
+  } else if (prof) {
+    s += 15  // profitable signal but margin data not available
+  }
 
   // Burn multiple: lifetime capital raised ÷ annual revenue (lower = more efficient)
   if (raisedInr > 0) {
@@ -363,7 +402,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   }
 
   // Select scorecards (1–2)
-  const scorecardIds    = selectScorecards(merged)
+  const scorecardIds     = selectScorecards(merged)
   const primaryScorecard = scorecardIds[0]
 
   // Compute dimensions per scorecard, then blend (average)
@@ -372,14 +411,14 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
     team:     scoreTeam(fm),
     traction: scoreTraction(fm, merged, sc),
     capital:  scoreCapital(fm, merged),
-    product:  scoreProduct(fm, sc),
+    product:  scoreProduct(fm, sc, stage),
     market:   scoreMarket(merged),
     unitEcon: scoreUnitEcon(fm, merged, sc),
     momentum: scoreMomentum(fm, merged),
   }))
 
-  const n   = sets.length
-  const avg = (fn: (d: typeof sets[0]) => number) => Math.round(sets.reduce((s, d) => s + fn(d), 0) / n)
+  const n    = sets.length
+  const avg  = (fn: (d: typeof sets[0]) => number) => Math.round(sets.reduce((s, d) => s + fn(d), 0) / n)
   const avgW = (i: number) => Math.round(sets.reduce((s, d) => s + d.w[i], 0) / n * 100) / 100
 
   const dimTeam     = avg(d => d.team)
@@ -390,13 +429,13 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const dimUnitEcon = avg(d => d.unitEcon)
   const dimMomentum = avg(d => d.momentum)
 
-  const wt   = avgW(0)  // team
-  const wtr  = avgW(1)  // traction
-  const wc   = avgW(2)  // capital
-  const wp   = avgW(3)  // product
-  const wm   = avgW(4)  // market
-  const wu   = avgW(5)  // unit_econ
-  const wmo  = avgW(6)  // momentum
+  const wt  = avgW(0)  // team
+  const wtr = avgW(1)  // traction
+  const wc  = avgW(2)  // capital
+  const wp  = avgW(3)  // product
+  const wm  = avgW(4)  // market
+  const wu  = avgW(5)  // unit_econ
+  const wmo = avgW(6)  // momentum
 
   const composite = Math.round(
     dimTeam * wt + dimTraction * wtr + dimCapital * wc +
@@ -417,7 +456,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   // ── Universal ratios ──────────────────────────────────────────────────────
   const foundedMs = merged.founded_date ? new Date(merged.founded_date).getTime() : 0
   const monthsOp  = foundedMs > 0 ? Math.max(1, (Date.now() - foundedMs) / (30.44 * 24 * 3600 * 1000)) : 0
-  const raisedInr = raisedUsd * USD_TO_INR
+  const raisedInr = raisedUsd * USD_M_TO_INR_CR
 
   let productSurface = 0
   for (let i = 1; i <= 6; i++) { if (fm[`product_${i}_name`]) productSurface++ }
@@ -447,8 +486,8 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
     ? Math.round(roundSizeInr / (0.18 * rev) * 10) / 10
     : undefined
   const tier               = fm["investor_1_tier"] || ""
-  const rInvestorQuality   = tier === "tier1" ? 5 : tier === "tier2" ? 4 : tier === "angel" ? 3
-    : tier === "govt" ? 2 : raisedUsd > 0 ? 1 : undefined
+  const rInvestorQuality   = tier === "tier1" ? 5 : tier === "tier2" ? 4 : tier === "tier3" ? 3
+    : tier === "angel" ? 3 : tier === "govt" ? 2 : raisedUsd > 0 ? 1 : undefined
   const rProductSurface    = productSurface > 0 ? productSurface : undefined
 
   // Founder depth (0–10) for the ratio display
@@ -461,7 +500,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   if (fm["founder_1_prior_exit"]    === "yes") founderDepth = Math.min(10, founderDepth + 2)
   if (fm["founder_1_prior_startup"] === "yes") founderDepth = Math.min(10, founderDepth + 1)
   const edu = (fm["founder_1_education"] || "").toLowerCase()
-  if (edu.includes("iit") || edu.includes("iim") || edu.includes("isb")) founderDepth = Math.min(10, founderDepth + 1)
+  if (isTier1Edu(edu)) founderDepth = Math.min(10, founderDepth + 1)
 
   const rCapitalProductivity = (rev && raisedInr > 0)
     ? Math.round(rev / raisedInr * 1000) / 10 : undefined

@@ -269,7 +269,10 @@ export default function HomePage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {usage?.role === "admin" && (
-            <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "var(--mono)" }}>ADMIN</span>
+            <button
+              onClick={() => router.push("/admin")}
+              style={{ background: "transparent", border: "1px solid rgba(251,191,36,0.4)", color: "#fbbf24", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "var(--mono)", cursor: "pointer" }}
+            >ADMIN</button>
           )}
           {usage?.role === "standard" && (
             <span style={{

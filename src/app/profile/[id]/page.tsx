@@ -263,6 +263,8 @@ export default function ProfilePage({
   const maxRev = Math.max(...revenueHistory.map(r => parseFloat(r.inr) || 0))
 
   const brandInitials = str(s.brand_name).split(/\s+/).map(w => w[0] || "").slice(0,2).join("").toUpperCase()
+  const hasProfile = !!s.last_collected_at
+  const revFY = str(s.revenue_fy) || rv("revenue_fy1_year")
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
@@ -312,9 +314,6 @@ export default function ProfilePage({
           </div>
         ))}
         <div style={{ margin: "1.5rem 0 0", padding: "1rem", borderTop: "1px solid var(--border)" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 4, padding: "4px 8px", fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)", fontWeight: 500, marginBottom: "0.625rem" }}>
-            ● DB v3 · {str(s.brand_name).slice(0,2).toUpperCase()}001
-          </div>
           <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", lineHeight: 1.9 }}>
             {sc?.data_quality_pct != null && `${sc.data_quality_pct}% data quality`}<br/>
             {sc?.fields_applicable != null && `${sc.fields_collected} of ${sc.fields_applicable} fields`}<br/>
@@ -358,7 +357,7 @@ export default function ProfilePage({
         <section data-sec="s01" id="s01" style={SEC}>
           <SecHeader n="01" title="Key Metrics" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
-            <StatCard label={`Revenue ${str(s.revenue_fy) || rv("revenue_fy1_year") || ""}`}
+            <StatCard label={revFY ? `Revenue ${revFY}` : "Revenue"}
               value={s.revenue_inr_cr ? `₹${str(s.revenue_inr_cr)} Cr` : rv("revenue_fy1_inr_cr") ? `₹${rv("revenue_fy1_inr_cr")} Cr` : "—"}
               sub={[s.revenue_yoy_pct ? `+${str(s.revenue_yoy_pct)}% YoY` : "", nextTarget ? `FY target ₹${nextTarget} Cr` : ""].filter(Boolean).join(" · ")}
               color="var(--navy)" />
@@ -366,18 +365,18 @@ export default function ProfilePage({
               value={s.net_profit_inr_cr ? `₹${str(s.net_profit_inr_cr)} Cr` : "—"}
               sub={Boolean(s.is_profitable) ? "Profitable ✓" : s.net_profit_inr_cr ? "Net Loss" : ""}
               color={Boolean(s.is_profitable) ? "var(--green)" : undefined} />
-            <StatCard label={str(s.last_round_type) || "Latest Round"}
+            <StatCard label="Latest Round"
               value={s.last_round_size_inr_cr ? `₹${str(s.last_round_size_inr_cr)} Cr` : s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M total` : "—"}
               sub={[str(s.last_round_type), str(s.last_round_date).slice(0,7)].filter(Boolean).join(" · ")} />
             <StatCard label="Total Raised"
               value={s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M` : "—"}
               sub={rv("round_count") ? `${rv("round_count")} rounds` : ""} />
             {volumeMetric && (
-              <StatCard label="Annual Scale"
-                value={volumeMetric.split(";")[0]?.trim() || volumeMetric}
+              <StatCard label="Volume Metric"
+                value={volumeMetric}
                 sub="" />
             )}
-            <StatCard label="Enterprise Clients"
+            <StatCard label="Known Clients"
               value={s.client_count ? `${str(s.client_count)}+` : "—"}
               sub="clients" />
             <StatCard label="Team Size"
@@ -401,7 +400,7 @@ export default function ProfilePage({
               </div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 110, paddingBottom: 22, position: "relative" }}>
                 <div style={{ position: "absolute", bottom: 22, left: 0, right: 0, height: 1, background: "var(--border-md)" }}/>
-                {[...revenueHistory].reverse().map((r, i, arr) => {
+                {revenueHistory.map((r, i, arr) => {
                   const pct = maxRev > 0 ? Math.max(5, Math.round((parseFloat(r.inr) / maxRev) * 88)) : 5
                   const isCur = i === arr.length - 1
                   return (
@@ -492,7 +491,7 @@ export default function ProfilePage({
         {/* ── S04 FOUNDERS & TEAM ── */}
         <section data-sec="s04" id="s04" style={SEC}>
           <SecHeader n="03" title="Founders & Team" />
-          {founders.length === 0 ? <Empty>No founder data collected yet.</Empty> : (
+          {founders.length === 0 ? <Empty>{hasProfile ? "No founder or team data was found for this company — founders may not have a public profile." : "Run a full profile to collect founder data."}</Empty> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
                 {founders.map((f, i) => (
@@ -566,7 +565,7 @@ export default function ProfilePage({
         {/* ── S05 PRODUCT ── */}
         <section data-sec="s05" id="s05" style={SEC}>
           <SecHeader n="04" title="Product" />
-          {products.length === 0 ? <Empty>No product data collected yet.</Empty> : (
+          {products.length === 0 ? <Empty>{hasProfile ? "No product data was found for this company." : "Run a full profile to collect product data."}</Empty> : (
             <>
               <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: "1.5rem", overflowX: "auto" }}>
                 {products.map((p, i) => (
@@ -589,13 +588,18 @@ export default function ProfilePage({
                     )}
                   </div>
                   <div>
-                    {clients.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {clients.map((c, i) => (
-                          <span key={i} style={{ fontSize: 11, fontWeight: 500, padding: "4px 9px", borderRadius: 5, background: "var(--bg-soft)", color: "var(--text-s)", border: "1px solid var(--border-md)" }}>{c.name}</span>
-                        ))}
-                      </div>
-                    )}
+                    {clients.length > 0 ? (
+                      <>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-xs)", marginBottom: 8, fontWeight: 500 }}>Key Clients</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {clients.map((c, i) => (
+                            <span key={i} style={{ fontSize: 11, fontWeight: 500, padding: "4px 9px", borderRadius: 5, background: "var(--bg-soft)", color: "var(--text-s)", border: "1px solid var(--border-md)" }}>{c.name}</span>
+                          ))}
+                        </div>
+                      </>
+                    ) : hasProfile ? (
+                      <div style={{ fontSize: 12, color: "var(--text-xs)", fontStyle: "italic" }}>No clients listed for this product.</div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -606,7 +610,7 @@ export default function ProfilePage({
         {/* ── S06 FUNDING ── */}
         <section data-sec="s06" id="s06" style={SEC}>
           <SecHeader n="05" title="Funding" />
-          {roundHistory.length === 0 ? <Empty>No funding data collected yet.</Empty> : (
+          {roundHistory.length === 0 ? <Empty>{hasProfile ? "No funding rounds were found — this company may be bootstrapped or rounds are undisclosed." : "Run a full profile to collect funding data."}</Empty> : (
             <>
               <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -642,9 +646,9 @@ export default function ProfilePage({
 
         {/* ── S13 COMPETITIVE LANDSCAPE ── */}
         <section data-sec="s13" id="s13" style={SEC}>
-          <SecHeader n="06" title="Competitive Landscape" badge="Pass 5" />
+          <SecHeader n="06" title="Competitive Landscape" />
           {!str(s.competitive_density) && !competitors.length && !str(s.market_leader_name) ? (
-            <Empty>No competitive data collected yet.</Empty>
+            <Empty>{hasProfile ? "No competitive data was found. The market may be nascent or data is limited." : "Run a full profile to collect competitive data."}</Empty>
           ) : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -711,7 +715,7 @@ export default function ProfilePage({
         {/* ── S07 PARTNERSHIPS ── */}
         <section data-sec="s07" id="s07" style={SEC}>
           <SecHeader n="07" title="Partnerships" />
-          {partnerships.length === 0 ? <Empty>No partnership data collected yet.</Empty> : (
+          {partnerships.length === 0 ? <Empty>{hasProfile ? "No partnerships were found for this company." : "Run a full profile to collect partnership data."}</Empty> : (
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
@@ -751,14 +755,14 @@ export default function ProfilePage({
         {/* ── S12 RECOGNITIONS ── */}
         <section data-sec="s12" id="s12" style={SEC}>
           <SecHeader n="08" title="Recognitions" />
-          {awards.length === 0 ? <Empty>No awards or recognitions collected yet.</Empty> : (
+          {awards.length === 0 ? <Empty>{hasProfile ? "No awards or recognitions were found for this company." : "Run a full profile to collect awards data."}</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem" }}>
               {awards.map((award, i) => (
-                <div key={i} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s, border-color 0.15s" }}
+                <div key={i} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem", display: "flex", gap: "0.75rem", alignItems: "flex-start", transition: "box-shadow 0.15s, border-color 0.15s" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(30,58,95,0.1)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
-                  <div style={{ fontFamily: "var(--mono)", fontSize: 20, color: "var(--amber)", fontWeight: 700, marginBottom: "0.625rem", lineHeight: 1 }}>★</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)", lineHeight: 1.4 }}>{award}</div>
+                  <span style={{ color: "var(--amber)", fontWeight: 700, fontSize: 13, flexShrink: 0, marginTop: 1 }}>★</span>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-m)", lineHeight: 1.45 }}>{award}</div>
                 </div>
               ))}
             </div>
@@ -767,8 +771,8 @@ export default function ProfilePage({
 
         {/* ── S09 LINKEDIN ── */}
         <section data-sec="s09" id="s09" style={SEC}>
-          <SecHeader n="09" title="LinkedIn" badge="Passes 8+9" />
-          {profile.linkedin.length === 0 ? <Empty>No LinkedIn signals collected.</Empty> : (
+          <SecHeader n="09" title="LinkedIn" />
+          {profile.linkedin.length === 0 ? <Empty>{hasProfile ? "No LinkedIn signals were found — the founders or company may have limited LinkedIn presence." : "Run a full profile to collect LinkedIn signals."}</Empty> : (
             <>
               {[
                 { label: "Founder Posts", signals: profile.linkedin.filter(sig => sig.pass === 8) },
@@ -791,7 +795,7 @@ export default function ProfilePage({
                         </div>
                         {sig.post_text && <div style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.65, fontStyle: "italic" }}>"{sig.post_text}"</div>}
                         <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", marginTop: "0.5rem", display: "flex", justifyContent: "space-between" }}>
-                          <span>conf: {sig.confidence}{sig.post_date ? ` · ${sig.post_date}` : ""}</span>
+                          <span>{sig.post_date || ""}</span>
                           {sig.post_url && <a href={sig.post_url} target="_blank" rel="noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>View ↗</a>}
                         </div>
                       </div>
@@ -805,8 +809,8 @@ export default function ProfilePage({
 
         {/* ── S10 GLASSDOOR ── */}
         <section data-sec="s10" id="s10" style={SEC}>
-          <SecHeader n="10" title="Glassdoor" badge="Pass 3" />
-          {!s.glassdoor_rating && !s.glassdoor_wlb && !s.glassdoor_recommend && !s.glassdoor_themes ? <Empty>No Glassdoor data collected.</Empty> : (
+          <SecHeader n="10" title="Glassdoor" />
+          {!s.glassdoor_rating && !s.glassdoor_wlb && !s.glassdoor_recommend && !s.glassdoor_themes ? <Empty>{hasProfile ? "No Glassdoor page was found — the company may not have enough reviews or the page may be unlisted." : "Run a full profile to collect Glassdoor data."}</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: s.glassdoor_rating ? "160px 1fr" : "1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
               {!!s.glassdoor_rating && (
               <div style={{ textAlign: "center" }}>
@@ -848,7 +852,7 @@ export default function ProfilePage({
                   )}
                   {rv("glassdoor_review_neutral") && (
                     <div style={{ borderRadius: 6, padding: "0.75rem 1rem", fontSize: 13, lineHeight: 1.6, background: "var(--amber-lt)", border: "1px solid var(--amber-bd)", color: "var(--text-m)" }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, display: "block", marginBottom: 4, color: "var(--amber)" }}>Nuance</span>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, display: "block", marginBottom: 4, color: "var(--amber)" }}>Mixed</span>
                       {rv("glassdoor_review_neutral")}
                     </div>
                   )}
@@ -869,8 +873,8 @@ export default function ProfilePage({
 
         {/* ── S08 YOUTUBE ── */}
         <section data-sec="s08" id="s08" style={SEC}>
-          <SecHeader n="11" title="YouTube" badge="Pass 7" />
-          {profile.youtube.length === 0 ? <Empty>No YouTube data collected.</Empty> : (
+          <SecHeader n="11" title="YouTube" />
+          {profile.youtube.length === 0 ? <Empty>{hasProfile ? "No YouTube content was found — the company may not have public video presence." : "Run a full profile to collect YouTube data."}</Empty> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: "8px 8px 0 0", overflow: "hidden" }}>
                 {([
@@ -926,96 +930,88 @@ export default function ProfilePage({
               {rescoring ? "Rescoring…" : "↺ Rescore"}
             </button>
           } />
-          {!sc ? <Empty>No score data yet.</Empty> : (
+          {!sc ? <Empty>Scoring has not run yet for this company. Use the ↺ Rescore button above to generate a score.</Empty> : (
             <>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "2rem", gap: "0.5rem" }}>
-                <div style={{ position: "relative", width: 144, height: 144 }}>
-                  <svg width="144" height="144" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="72" cy="72" r="60" fill="none" stroke="var(--border)" strokeWidth="10" />
-                    <circle ref={ringRef} cx="72" cy="72" r="60" fill="none"
-                      stroke={score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)"}
-                      strokeWidth="10" strokeLinecap="round" />
-                  </svg>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ fontFamily: "var(--serif)", fontSize: 40, fontWeight: 700, lineHeight: 1,
-                      color: score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)" }}>
-                      {score}
+              {/* Ring + Data Quality side by side */}
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "2.5rem", alignItems: "start", marginBottom: "2rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem" }}>
+                  <div style={{ position: "relative", width: 144, height: 144 }}>
+                    <svg width="144" height="144" style={{ transform: "rotate(-90deg)" }}>
+                      <circle cx="72" cy="72" r="60" fill="none" stroke="var(--border)" strokeWidth="10" />
+                      <circle ref={ringRef} cx="72" cy="72" r="60" fill="none"
+                        stroke={score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)"}
+                        strokeWidth="10" strokeLinecap="round" />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ fontFamily: "var(--serif)", fontSize: 40, fontWeight: 700, lineHeight: 1,
+                        color: score >= 80 ? "var(--green)" : score >= 60 ? "var(--amber)" : "var(--red)" }}>
+                        {score}
+                      </div>
+                      <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>/ 100</div>
                     </div>
-                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>/ 100</div>
                   </div>
-                </div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-s)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Composite Score</div>
-                {sc.scorecard_ids && sc.scorecard_ids.length > 0 && (
-                  <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-                    {sc.scorecard_ids.map(id => {
-                      const cfg = SCORECARD_STYLE[id] ?? SCORECARD_STYLE.base
-                      return (
-                        <span key={id} style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600,
-                          textTransform: "uppercase", letterSpacing: "0.08em",
-                          padding: "3px 9px", borderRadius: 4,
-                          background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                          {cfg.label}
-                        </span>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Row 1: Team, Traction, Capital, Product */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.875rem", marginBottom: "0.875rem" }}>
-                {([
-                  ["Team Quality",       sc.dim_team,      sc.w_team,      "var(--navy)"],
-                  ["Traction / Revenue", sc.dim_traction,  sc.w_traction,  "var(--green)"],
-                  ["Capital / Funding",  sc.dim_capital,   sc.w_capital,   "var(--navy)"],
-                  ["Product / Moat",     sc.dim_product,   sc.w_product,   "var(--green)"],
-                ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
-                  <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
-                      <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-s)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Composite Score</div>
+                  {sc.scorecard_ids && sc.scorecard_ids.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                      {sc.scorecard_ids.map(id => {
+                        const cfg = SCORECARD_STYLE[id] ?? SCORECARD_STYLE.base
+                        return (
+                          <span key={id} style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600,
+                            textTransform: "uppercase", letterSpacing: "0.08em",
+                            padding: "3px 9px", borderRadius: 4,
+                            background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                            {cfg.label}
+                          </span>
+                        )
+                      })}
                     </div>
-                    <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
-                      <div style={{ height: "100%", width: val ? `${val}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Row 2: Market, Unit Economics, Momentum, Defensibility */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.875rem", marginBottom: "1.25rem" }}>
-                {([
-                  ["Market Opportunity", sc.dim_market,         sc.w_market,         "var(--navy)"],
-                  ["Unit Economics",     sc.dim_unit_econ,      sc.w_unit_econ,      "var(--green)"],
-                  ["Momentum",          sc.dim_momentum,       sc.w_momentum,       "var(--navy)"],
-                  ["Defensibility",     sc.dim_defensibility,  sc.w_defensibility,  "var(--green)"],
-                ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
-                  <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
-                      <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
-                    </div>
-                    <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
-                      <div style={{ height: "100%", width: val ? `${val}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
-                  </div>
-                ))}
-              </div>
-
-              {sc.data_quality_pct != null && (
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 6, padding: "0.75rem 1rem", marginBottom: "1.25rem" }}>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--green)", whiteSpace: "nowrap", fontWeight: 500 }}>Data Quality</span>
-                  <div style={{ flex: 1, height: 6, background: "var(--green-bd)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${sc.data_quality_pct}%`, background: "var(--green)", borderRadius: 3 }}/>
-                  </div>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.data_quality_pct}%</span>
-                  {sc.fields_applicable != null && (
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)", whiteSpace: "nowrap" }}>{sc.fields_collected} of {sc.fields_applicable} fields</span>
                   )}
                 </div>
-              )}
+                <div style={{ paddingTop: "1rem" }}>
+                  {sc.data_quality_pct != null && (
+                    <>
+                      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 8, fontWeight: 500 }}>Data Quality</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.875rem", marginBottom: "0.5rem" }}>
+                        <div style={{ flex: 1, height: 8, background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${sc.data_quality_pct}%`, background: sc.data_quality_pct >= 70 ? "var(--green)" : sc.data_quality_pct >= 50 ? "var(--amber)" : "var(--red)", borderRadius: 4, transition: "width 1s ease" }}/>
+                        </div>
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 16, fontWeight: 700, color: sc.data_quality_pct >= 70 ? "var(--green)" : sc.data_quality_pct >= 50 ? "var(--amber)" : "var(--red)", whiteSpace: "nowrap" }}>{sc.data_quality_pct}%</span>
+                      </div>
+                      {sc.fields_applicable != null && (
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>{sc.fields_collected} of {sc.fields_applicable} applicable fields collected</div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* All 8 dimensions — score-colored bars */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.875rem" }}>
+                {([
+                  ["Team Quality",       sc.dim_team,         sc.w_team],
+                  ["Traction / Revenue", sc.dim_traction,     sc.w_traction],
+                  ["Capital / Funding",  sc.dim_capital,      sc.w_capital],
+                  ["Product / Moat",     sc.dim_product,      sc.w_product],
+                  ["Market Opportunity", sc.dim_market,       sc.w_market],
+                  ["Unit Economics",     sc.dim_unit_econ,    sc.w_unit_econ],
+                  ["Momentum",           sc.dim_momentum,     sc.w_momentum],
+                  ["Defensibility",      sc.dim_defensibility, sc.w_defensibility],
+                ] as [string, number|undefined, number|undefined][]).map(([name, val, w]) => {
+                  const c = dimColor(val)
+                  return (
+                    <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)" }}>{name}</span>
+                        <span style={{ fontFamily: "var(--serif)", fontSize: 24, fontWeight: 700, color: c }}>{val ?? "—"}</span>
+                      </div>
+                      <div style={{ height: 5, background: "var(--bg-soft)", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                        <div style={{ height: "100%", width: val != null ? `${Math.min(val, 100)}%` : "0%", background: c, borderRadius: 3, transition: "width 1s ease" }}/>
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-xs)" }}>{w != null ? `Weight: ${(w * 100).toFixed(0)}%` : "—"}</div>
+                    </div>
+                  )
+                })}
+              </div>
 
             </>
           )}
@@ -1224,6 +1220,13 @@ const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string
   fintech:     { label: "FinTech",     color: "#059669", bg: "#ECFDF5", border: "#A7F3D0" },
   deeptech:    { label: "Deep Tech",   color: "#4F46E5", bg: "#EEF2FF", border: "#C7D2FE" },
   base:        { label: "General",     color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB" },
+}
+
+function dimColor(val: number | undefined): string {
+  if (val == null) return "var(--text-xs)"
+  if (val >= 70) return "var(--green)"
+  if (val >= 50) return "var(--amber)"
+  return "var(--red)"
 }
 
 function Empty({ children }: { children: React.ReactNode }) {

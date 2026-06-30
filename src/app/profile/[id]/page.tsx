@@ -177,6 +177,7 @@ export default function ProfilePage({
 
   const scrollTo = (sectionId: string) => (e: React.MouseEvent) => {
     e.preventDefault()
+    setActiveSection(sectionId)
     const el = document.getElementById(sectionId)
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 56, behavior: "smooth" })
   }

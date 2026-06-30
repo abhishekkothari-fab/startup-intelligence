@@ -184,6 +184,20 @@ export default function HomePage() {
         ) : (
           <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <colgroup>
+                <col style={{ width: 44 }} />
+                <col style={{ width: 180 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 60 }} />
+                <col style={{ width: 52 }} />
+                <col style={{ width: 130 }} />
+                <col style={{ width: 82 }} />
+                <col style={{ width: 82 }} />
+                <col style={{ width: 58 }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
                   {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ","Scorecard","Refreshed","Scored",""].map(h => (
@@ -198,7 +212,7 @@ export default function HomePage() {
                     onClick={() => router.push(`/profile/${r.id}`)}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-soft)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "")}>
-                    <td style={{ ...tdStyle, fontWeight: 600, color: "var(--text-xs)", width: 48 }}>
+                    <td style={{ ...tdStyle, fontWeight: 600, color: "var(--text-xs)", textAlign: "center" }}>
                       {(page-1)*20 + i + 1}
                     </td>
                     <td style={{ ...tdStyle, fontWeight: 600, color: "var(--text-h)" }}>
@@ -232,10 +246,10 @@ export default function HomePage() {
                         })}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", whiteSpace: "nowrap" }}>
                       {relTime(r.last_collected_at)}
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)", whiteSpace: "nowrap" }}>
                       {relTime(r.last_scored_at)}
                     </td>
                     <td style={{ ...tdStyle, color: "var(--blue)" }}>View →</td>

@@ -269,7 +269,8 @@ export default function ProfilePage({
   const ipoSignal       = rv("ipo_signal")
   const volumeMetric    = rv("volume_metric")
   const cagr            = rv("revenue_cagr_5yr_pct")
-  const nextTarget      = rv("fy_next_target_inr_cr")
+  const nextTargetRaw   = rv("fy_next_target_inr_cr")
+  const nextTarget      = nextTargetRaw && /^\d[\d,.]*$/.test(nextTargetRaw.trim()) ? nextTargetRaw : null
   const latestNews      = rv("latest_news_headline")
   const latestNewsDate  = rv("latest_news_date")
   const marketShare     = rv("market_share")

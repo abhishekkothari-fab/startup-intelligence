@@ -1,4 +1,4 @@
-// supabase/functions/_shared/scoring.ts  —  scoring v6
+// supabase/functions/_shared/scoring.ts  —  scoring v7
 
 import type { StartupProfile } from "./types.ts"
 
@@ -136,6 +136,15 @@ function isTier1Edu(edu: string): boolean {
 
 // ── Dimension scorers ──────────────────────────────────────────────────────
 
+function advisorOrgBonus(org: string): number {
+  const o = org.toLowerCase()
+  if (/sequoia|accel|lightspeed|tiger|softbank|kleiner|a16z|y.?combinator|\byc\b/.test(o)) return 12
+  if (/\bgoogle\b|microsoft|amazon|\bapple\b|\bmeta\b|facebook|netflix|\buber\b|airbnb/.test(o)) return 10
+  if (/mckinsey|bain\b|bcg|deloitte|pwc|kpmg/.test(o)) return 8
+  if (/\biit\b|\biim\b|\bisb\b|iisc/.test(o)) return 7
+  return 5  // any named org still counts
+}
+
 function scoreTeam(fm: Record<string, string>): number {
   let s = 15
 
@@ -150,6 +159,11 @@ function scoreTeam(fm: Record<string, string>): number {
   else if (dom1 >= 5)  s += 8
   else if (dom1 >= 3)  s += 4
 
+  // Founder 1 employer background (Tier 2)
+  const emp1 = fm["founder_1_prior_employer_type"] || ""
+  if (emp1 === "faang" || emp1 === "bigtech") s += 8
+  else if (emp1 === "big4consulting")         s += 5
+
   // Co-founder (founder_2)
   if (fm["founder_2_name"] || fm["founder_2_role"]) {
     s += 8
@@ -157,12 +171,30 @@ function scoreTeam(fm: Record<string, string>): number {
     if (isTier1Edu(edu2)) s += 5
     if (fm["founder_2_prior_exit"]    === "yes") s += 8
     if (fm["founder_2_prior_startup"] === "yes") s += 4
+
+    // Founder 2 employer background (Tier 2)
+    const emp2 = fm["founder_2_prior_employer_type"] || ""
+    if (emp2 === "faang" || emp2 === "bigtech") s += 5
+    else if (emp2 === "big4consulting")         s += 3
+
+    // Co-founder relationship depth (Tier 2)
+    const overlap = parseInt(fm["cofounder_overlap_years"] || "0")
+    if      (overlap >= 3) s += 8
+    else if (overlap >= 1) s += 3
   }
 
-  // Advisors
+  // Advisors: tier-weighted by org when available, count-based fallback
+  const adv1Org = fm["advisor_1_org"] || ""
+  const adv2Org = fm["advisor_2_org"] || ""
   const adv = parseInt(fm["advisor_count"] || "0")
-  if      (adv >= 3) s += 10
-  else if (adv >= 1) s += 5
+  if (adv1Org) {
+    s += advisorOrgBonus(adv1Org)
+    if (adv2Org) s += Math.max(3, advisorOrgBonus(adv2Org) - 3)
+  } else if (adv >= 3) {
+    s += 10
+  } else if (adv >= 1) {
+    s += 5
+  }
 
   return Math.min(100, s)
 }
@@ -241,55 +273,87 @@ function scoreCapital(fm: Record<string, string>, merged: Partial<StartupProfile
   const raisedUsd = merged.total_raised_usd_m || 0
   const tier      = fm["investor_1_tier"] || ""
 
-  if (tier === "tier1") return 90
-  if (tier === "tier2") return 75
-  if (tier === "tier3") return 62
-  if (tier === "angel") return 50
-  if (tier === "govt")  return 40
+  let s: number
+  if      (tier === "tier1")    s = 90
+  else if (tier === "tier2")    s = 75
+  else if (tier === "tier3")    s = 62
+  else if (tier === "angel")    s = 50
+  else if (tier === "govt")     s = 40
+  else if (raisedUsd >= 100)    s = 85
+  else if (raisedUsd >= 30)     s = 70
+  else if (raisedUsd >= 10)     s = 55
+  else if (raisedUsd > 0)       s = 35
+  else s = merged.is_profitable ? 45 : 10
 
-  if (raisedUsd >= 100) return 85
-  if (raisedUsd >= 30)  return 70
-  if (raisedUsd >= 10)  return 55
-  if (raisedUsd > 0)    return 35
+  // Strategic investor: corporate (Tata, Google, Reliance etc.) validates and signals exit path
+  const isStrategic = fm["is_strategic_investor"]
+  if (isStrategic === "true" || isStrategic === "yes") s = Math.min(100, s + 10)
 
-  // Bootstrapped — reward profitability
-  return merged.is_profitable ? 45 : 10
+  // Round type: debt instruments rank below equity
+  const roundDetail = fm["last_round_type_detail"] || ""
+  if      (roundDetail === "venture_debt")     s = Math.max(0, s - 10)
+  else if (roundDetail === "convertible_note") s = Math.max(0, s - 5)
+
+  return s
 }
 
 function scoreProduct(fm: Record<string, string>, scorecard: string, stage: string): number {
-  const moat    = (fm["has_technical_moat"] || "").startsWith("yes")
-  const api     = fm["has_api"]        === "yes"
-  const mobile  = fm["has_mobile_app"] === "yes"
-  const patents = parseInt(fm["patent_count"]  || "0")
-  const prods   = parseInt(fm["product_count"] || "0")
+  const moat   = (fm["has_technical_moat"] || "").startsWith("yes")
+  const api    = fm["has_api"]        === "yes"
+  const mobile = fm["has_mobile_app"] === "yes"
+  const prods  = parseInt(fm["product_count"] || "0")
 
-  // Multiple products signal breadth but penalise focus at early stages
+  // Patents: granted is primary signal; filed (patent_count) gets half credit if no granted data
+  const grantedPatents   = parseInt(fm["patent_granted_count"] || "0")
+  const filedPatents     = parseInt(fm["patent_count"]         || "0")
+  const effectivePatents = grantedPatents > 0 ? grantedPatents : Math.floor(filedPatents / 2)
+  const usPatentBonus    = parseInt(fm["patent_us_count"] || "0") > 0 ? 5 : 0
+
+  // Network effects (Tier 2): direct and indirect moat signals
+  const netType  = fm["network_effects_type"] || "none"
+  const netBonus = netType === "platform" ? 25 : netType === "data" ? 20
+    : netType === "indirect" ? 18 : netType === "direct" ? 15 : 0
+
+  // App store quality signal (Tier 2)
+  const appRating = parseFloat(fm["app_store_rating"] || "0")
+  const appBonus  = appRating >= 4.5 ? 10 : appRating >= 4.0 ? 5 : 0
+
+  // Third-party API integrations (Tier 2): ecosystem stickiness
+  const apiIntCount = parseInt(fm["api_integration_count"] || "0")
+  const apiIntBonus = apiIntCount >= 50 ? 10 : apiIntCount >= 10 ? 5 : 0
+
+  // Multiple products: breadth but penalise focus at early stages
   const prodBonus = prods > 1 ? (stage === "pre_seed" ? 0 : stage === "seed" ? 5 : 10) : 0
 
   if (scorecard === "saas") {
-    return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + (patents > 0 ? 10 : 0)
-      + prodBonus + (mobile ? 5 : 0))
+    const patentBonus = effectivePatents > 0 ? 10 : 0
+    return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + patentBonus + usPatentBonus
+      + prodBonus + (mobile ? 5 : 0) + netBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "d2c") {
+    const patentBonus = effectivePatents > 0 ? 10 : 0
     return Math.min(100, 20 + (moat ? 30 : 0) + (mobile ? 15 : 0)
-      + prodBonus + (patents > 0 ? 10 : 0) + (api ? 5 : 0))
+      + prodBonus + patentBonus + usPatentBonus + (api ? 5 : 0) + netBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "fintech") {
+    const patentBonus = effectivePatents > 0 ? 10 : 0
     return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + (mobile ? 10 : 0)
-      + (patents > 0 ? 10 : 0) + prodBonus)
+      + patentBonus + usPatentBonus + prodBonus + netBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "marketplace") {
+    const patentBonus = effectivePatents > 0 ? 10 : 0
     return Math.min(100, 20 + (moat ? 25 : 0) + (mobile ? 20 : 0) + (api ? 15 : 0)
-      + prodBonus + (patents > 0 ? 10 : 0))
+      + prodBonus + patentBonus + usPatentBonus + netBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "deeptech") {
-    const patentBonus = patents >= 5 ? 25 : patents >= 2 ? 20 : patents > 0 ? 15 : 0
-    return Math.min(100, 15 + (moat ? 35 : 0) + patentBonus + prodBonus
-      + (api ? 5 : 0) + (mobile ? 5 : 0))
+    const patentBonus = effectivePatents >= 5 ? 25 : effectivePatents >= 2 ? 20 : effectivePatents > 0 ? 15 : 0
+    return Math.min(100, 15 + (moat ? 35 : 0) + patentBonus + usPatentBonus + prodBonus
+      + (api ? 5 : 0) + (mobile ? 5 : 0) + netBonus + appBonus + apiIntBonus)
   }
   // base
+  const patentBonus = effectivePatents > 0 ? 10 : 0
   return Math.min(100, 25 + (moat ? 30 : 0) + (api ? 15 : 0) + (mobile ? 10 : 0)
-    + (patents > 0 ? 10 : 0) + prodBonus)
+    + patentBonus + usPatentBonus + prodBonus + netBonus + appBonus + apiIntBonus)
 }
 
 function scoreMarket(merged: Partial<StartupProfile>): number {
@@ -312,6 +376,14 @@ function scoreMarket(merged: Partial<StartupProfile>): number {
   // International operations → larger accessible market
   if (region.includes("global") || (merged.hq_country && merged.hq_country !== "IN"))
     base = Math.min(95, base + 5)
+
+  // Competitive density (Tier 3): crowded market is harder to win
+  const density = merged.competitive_density || ""
+  if      (density === "crowded") base = Math.max(0,   base - 10)
+  else if (density === "low")     base = Math.min(100, base + 5)
+
+  // Geo analog: proven model in another geography de-risks the thesis
+  if (merged.geo_analog_company) base = Math.min(100, base + 5)
 
   return base
 }
@@ -371,16 +443,44 @@ function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfil
 
 function scoreMomentum(fm: Record<string, string>, merged: Partial<StartupProfile>): number {
   let s = 10
-  if (fm["award_1"])                                         s += 20
-  if (fm["partnership_1"] || fm["partnership_1_partner"])    s += 20
-  if (fm["latest_news_headline"])                            s += 15
 
+  if (fm["award_1"]) s += 20
+
+  // Partnership: tier-weighted when available (Tier 2), flat bonus fallback for old profiles
+  const partnerTier = fm["partner_1_tier"] || ""
+  const hasPartner  = !!(fm["partnership_1"] || fm["partnership_1_partner"])
+  if      (partnerTier === "enterprise") s += 20
+  else if (partnerTier === "mid")        s += 10
+  else if (partnerTier === "small")      s += 5
+  else if (hasPartner)                   s += 20
+
+  // News quality: tier-based scoring (Tier 2) replaces flat +15
+  const newsQuality = fm["news_source_quality"] || ""
+  if (fm["latest_news_headline"]) {
+    if      (newsQuality === "tier1") s += 15
+    else if (newsQuality === "tier2") s += 8
+    else if (newsQuality === "blog")  s += 3
+    else                              s += 8  // unknown quality: conservative default
+  }
+
+  // Named enterprise clients (Tier 2): publicly confirmed paying clients
+  const entClients = parseInt(fm["named_enterprise_client_count"] || "0")
+  if      (entClients >= 4) s += 18
+  else if (entClients >= 1) s += 10
+
+  // Glassdoor
   const gdr = merged.glassdoor_rating
   if      (gdr && gdr >= 4.0) s += 10
   else if (gdr && gdr >= 3.5) s += 5
 
   const gdOutlook = merged.glassdoor_positive_outlook_pct
   if (gdOutlook && gdOutlook >= 70) s += 5
+
+  // Recent fundraise (within 6 months): market endorsement signal
+  if (merged.last_round_date) {
+    const msAgo = Date.now() - new Date(merged.last_round_date).getTime()
+    if (msAgo < 6 * 30.44 * 24 * 3600 * 1000) s += 10
+  }
 
   return Math.min(100, s)
 }

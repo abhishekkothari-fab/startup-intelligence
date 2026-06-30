@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
+import { FeedbackWidget } from "@/components/FeedbackWidget"
 
 // ── Scorecard display ────────────────────────────────────────────
 const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -655,6 +656,8 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      <FeedbackWidget startupId={null} sectionLabel="Leaderboard" />
     </div>
   )
 }

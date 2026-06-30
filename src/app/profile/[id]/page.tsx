@@ -277,7 +277,7 @@ export default function ProfilePage({
     bull_case?: string; bear_case?: string;
   } | null | undefined
 
-  const competitors = [1,2,3]
+  const competitors = [1,2,3,4,5]
     .map(n => ({
       name:    str((s as Record<string,unknown>)[`competitor_${n}_name`]),
       funding: (s as Record<string,unknown>)[`competitor_${n}_funding_usd_m`] != null ? str((s as Record<string,unknown>)[`competitor_${n}_funding_usd_m`]) : null,
@@ -379,7 +379,10 @@ export default function ProfilePage({
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${scoreGlowColor}55`, borderRadius: 100, padding: "6px 16px", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 500, color: "#fff", boxShadow: `0 0 10px ${scoreGlowColor}33`, display: "flex", alignItems: "center", gap: 6 }}>
             Investability Score: <span style={{ fontWeight: 700, color: scoreGlowColor }}>{score}</span> / 100
-            <span title="Composite score across 7 dimensions including traction, team, product, market, and financials. Indicative only — not investment advice." style={{ cursor: "help", fontSize: 12, opacity: 0.6, lineHeight: 1 }}>ⓘ</span>
+            {sc?.covered_dimensions != null && sc.covered_dimensions < 8 && (
+              <span style={{ fontSize: 10, opacity: 0.55, fontWeight: 400 }}>({sc.covered_dimensions}/8 dims)</span>
+            )}
+            <span title={`Coverage-adjusted score — only dimensions with collected data are included in the composite. ${sc?.covered_dimensions != null ? `Based on ${sc.covered_dimensions} of 8 dimensions.` : ""} Indicative only — not investment advice.`} style={{ cursor: "help", fontSize: 12, opacity: 0.6, lineHeight: 1 }}>ⓘ</span>
           </div>
           {hasProfile && missingPasses.length > 0 && !researching && !filling && (
             <button
@@ -1154,7 +1157,7 @@ export default function ProfilePage({
                 <div style={{ paddingTop: "1rem" }}>
                   {sc.data_quality_pct != null && (
                     <>
-                      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 8, fontWeight: 500 }}>Data Quality</div>
+                      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 8, fontWeight: 500 }}>Data Coverage</div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.875rem", marginBottom: "0.5rem" }}>
                         <div style={{ flex: 1, height: 8, background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${sc.data_quality_pct}%`, background: sc.data_quality_pct >= 70 ? "var(--green)" : sc.data_quality_pct >= 50 ? "var(--amber)" : "var(--red)", borderRadius: 4, transition: "width 1s ease" }}/>
@@ -1162,7 +1165,12 @@ export default function ProfilePage({
                         <span style={{ fontFamily: "var(--mono)", fontSize: 16, fontWeight: 700, color: sc.data_quality_pct >= 70 ? "var(--green)" : sc.data_quality_pct >= 50 ? "var(--amber)" : "var(--red)", whiteSpace: "nowrap" }}>{sc.data_quality_pct}%</span>
                       </div>
                       {sc.fields_applicable != null && (
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>{sc.fields_collected} of {sc.fields_applicable} applicable fields collected</div>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", marginBottom: 4 }}>{sc.fields_collected} of {sc.fields_applicable} applicable fields collected</div>
+                      )}
+                      {sc.covered_dimensions != null && (
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
+                          Score based on <strong>{sc.covered_dimensions} of 8</strong> dimensions — {8 - sc.covered_dimensions > 0 ? `${8 - sc.covered_dimensions} excluded (no data yet)` : "full coverage"}
+                        </div>
                       )}
                     </>
                   )}

@@ -66,6 +66,7 @@ export interface AnalystInput {
 
 export interface Score {
   composite_score:    number
+  covered_dimensions?: number
   dim_team:           number
   dim_traction:       number
   dim_capital:        number

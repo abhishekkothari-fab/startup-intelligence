@@ -96,6 +96,7 @@ export async function rescoreStartup(
     w_momentum:            s.w_momentum,
     w_defensibility:       s.w_defensibility,
     composite_score:       s.composite_score,
+    covered_dimensions:    s.covered_dimensions ?? null,
     fields_applicable:     s.fields_applicable,
     fields_collected:      s.fields_collected,
     fields_unknown:        s.fields_unknown,

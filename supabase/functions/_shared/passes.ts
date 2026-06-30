@@ -138,7 +138,7 @@ total_raised_usd_m must equal the arithmetic sum of ONLY confirmed numeric round
     system: `JSON only. Start with { end with }.
 
 Startup competitive intelligence analyst. Do up to 2 web searches to map the competitive landscape for the specified Indian startup.
-Search 1: target crunchbase.com, tracxn.com, or inc42.com for the top 3 direct competitors with funding and stage data.
+Search 1: target crunchbase.com, tracxn.com, or inc42.com for the top 5 direct competitors with funding and stage data — include emerging/newer players, not just the most prominent incumbents.
 Search 2: target the company website, YourStory, or press coverage for their stated competitive differentiation and the market leader.
 
 CRITICAL: Populate raw_fields with evidence for each field you find. Source URLs are required.
@@ -154,6 +154,12 @@ Return ONLY valid JSON:
   "competitor_3_name": null,
   "competitor_3_funding_usd_m": null,
   "competitor_3_stage": null,
+  "competitor_4_name": null,
+  "competitor_4_funding_usd_m": null,
+  "competitor_4_stage": null,
+  "competitor_5_name": null,
+  "competitor_5_funding_usd_m": null,
+  "competitor_5_stage": null,
   "market_leader_name": null,
   "geo_analog_company": null,
   "geo_analog_country": null,
@@ -174,7 +180,7 @@ Field rules:
 - competitive_density: low (<3 funded competitors in India)|medium (3–7)|high (8–15)|crowded (15+ or entrenched incumbents)
 - differentiation_claim: 1–2 sentences on the startup's primary stated differentiator vs competitors (from their own website or press; paraphrase concisely)
 
-Only populate competitor_2 and competitor_3 if genuinely found in search results. Set null for any field not found. Do not fabricate.`,
+Only populate competitor fields if genuinely found in search results. Set null for any field not found. Do not fabricate.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
@@ -183,7 +189,7 @@ Only populate competitor_2 and competitor_3 if genuinely found in search results
       if (ctx?.website) {
         try { siteHint = ` OR site:${new URL(ctx.website).hostname}` } catch { /* ignore */ }
       }
-      return `Search 1: "${co} ${cname}${sector} competitors alternatives" site:crunchbase.com OR site:tracxn.com OR site:inc42.com OR site:yourstory.com — find top 3 direct competitors in India with funding amounts and stage.\nSearch 2: "${co}" competitive advantage differentiation "market leader" OR "vs"${siteHint} — find how ${co} differentiates from competitors and who dominates this market in India.\nReturn competitive landscape JSON for the Indian${sector}${stage} startup ${co}.`
+      return `Search 1: "${co} ${cname}${sector} competitors alternatives" site:crunchbase.com OR site:tracxn.com OR site:inc42.com OR site:yourstory.com — find top 5 direct competitors in India with funding amounts and stage, including emerging startups not just incumbents.\nSearch 2: "${co}" competitive advantage differentiation "market leader" OR "vs"${siteHint} — find how ${co} differentiates from competitors and who dominates this market in India.\nReturn competitive landscape JSON for the Indian${sector}${stage} startup ${co}.`
     },
     maxTokens: 3000,
     maxSearches: 2,

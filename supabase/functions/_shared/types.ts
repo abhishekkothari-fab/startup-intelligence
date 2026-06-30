@@ -85,6 +85,12 @@ export interface StartupProfile {
   competitor_3_name?: string
   competitor_3_funding_usd_m?: number
   competitor_3_stage?: string
+  competitor_4_name?: string
+  competitor_4_funding_usd_m?: number
+  competitor_4_stage?: string
+  competitor_5_name?: string
+  competitor_5_funding_usd_m?: number
+  competitor_5_stage?: string
   market_leader_name?: string
   geo_analog_company?: string
   geo_analog_country?: string
@@ -111,6 +117,7 @@ export interface StartupProfile {
     w_momentum: number
     w_defensibility: number
     composite_score: number
+    covered_dimensions: number
     fields_applicable: number
     fields_collected: number
     fields_unknown: number

@@ -637,11 +637,37 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const wmo = avgW(6)  // momentum
   const wdf = avgW(7)  // defensibility
 
-  const composite = Math.round(
-    dimTeam * wt + dimTraction * wtr + dimCapital * wc +
-    dimProduct * wp + dimMarket * wm + dimUnitEcon * wu + dimMomentum * wmo +
-    dimDefensibility * wdf
-  )
+  // Coverage-adjusted composite: only score dimensions we have evidence for.
+  // Dimensions with no data are excluded and their weights redistributed, so
+  // an early-stage company isn't penalised for the absence of a track record.
+  const hasCoverage: Record<string, boolean> = {
+    team:          !!(fm["founder_1_education"] || fm["founder_1_domain_years"] || fm["founder_1_prior_exit"] || merged.glassdoor_rating),
+    traction:      !!(parseFloat(fm["revenue_fy1_inr_cr"] || "0") > 0 || merged.revenue_inr_cr != null || fm["client_count"] || fm["gmv_inr_cr"] || fm["order_count_monthly"]),
+    capital:       !!(merged.total_raised_usd_m != null || fm["round_count"] || fm["investor_1_name"] || fm["investor_1_tier"]),
+    product:       !!(fm["product_1_name"] || fm["has_api"] || fm["has_mobile_app"]),
+    market:        true,
+    unit_econ:     !!(merged.revenue_inr_cr != null || fm["runway_months"] || merged.is_profitable != null),
+    momentum:      !!(fm["award_1"] || fm["partnership_1"] || fm["partnership_1_partner"] || fm["news_source_quality"] || fm["latest_news_headline"]),
+    defensibility: !!(fm["patent_1_status"] || fm["network_effects_strength"] || fm["switching_cost"] || fm["data_moat"]),
+  }
+
+  const allDims = [
+    { key: "team",          score: dimTeam,         w: wt  },
+    { key: "traction",      score: dimTraction,      w: wtr },
+    { key: "capital",       score: dimCapital,       w: wc  },
+    { key: "product",       score: dimProduct,       w: wp  },
+    { key: "market",        score: dimMarket,        w: wm  },
+    { key: "unit_econ",     score: dimUnitEcon,      w: wu  },
+    { key: "momentum",      score: dimMomentum,      w: wmo },
+    { key: "defensibility", score: dimDefensibility, w: wdf },
+  ]
+
+  const knownDims        = allDims.filter(d => hasCoverage[d.key])
+  const knownWtSum       = knownDims.reduce((s, d) => s + d.w, 0)
+  const composite        = knownWtSum > 0
+    ? Math.round(knownDims.reduce((s, d) => s + d.score * (d.w / knownWtSum), 0))
+    : 0
+  const coveredDimensions = knownDims.length
 
   // Data quality
   const allRaw              = merged.raw_fields || []
@@ -727,7 +753,8 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
       w_unit_econ:       wu,
       w_momentum:        wmo,
       w_defensibility:   wdf,
-      composite_score:   composite,
+      composite_score:     composite,
+      covered_dimensions:  coveredDimensions,
       fields_applicable:     fieldsApplicable,
       fields_collected:      fieldsCollected,
       fields_unknown:        fieldsUnknown,

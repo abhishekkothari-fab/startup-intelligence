@@ -258,6 +258,8 @@ const STARTUP_SCALAR_FIELDS: (keyof StartupProfile)[] = [
   "competitor_1_name", "competitor_1_funding_usd_m", "competitor_1_stage",
   "competitor_2_name", "competitor_2_funding_usd_m", "competitor_2_stage",
   "competitor_3_name", "competitor_3_funding_usd_m", "competitor_3_stage",
+  "competitor_4_name", "competitor_4_funding_usd_m", "competitor_4_stage",
+  "competitor_5_name", "competitor_5_funding_usd_m", "competitor_5_stage",
   "market_leader_name", "geo_analog_company", "geo_analog_country",
   "competitive_density", "differentiation_claim",
   "insights",
@@ -269,7 +271,8 @@ const INT_FIELDS  = new Set(["team_size", "client_count", "glassdoor_reviews", "
 const NUM_FIELDS  = new Set(["revenue_inr_cr", "revenue_yoy_pct", "net_profit_inr_cr",
   "total_raised_usd_m", "last_round_size_inr_cr",
   "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture", "glassdoor_career_opp",
-  "competitor_1_funding_usd_m", "competitor_2_funding_usd_m", "competitor_3_funding_usd_m"]);
+  "competitor_1_funding_usd_m", "competitor_2_funding_usd_m", "competitor_3_funding_usd_m",
+  "competitor_4_funding_usd_m", "competitor_5_funding_usd_m"]);
 
 export async function writeStartupPartial(
   supabase: SupabaseClient,
@@ -421,6 +424,7 @@ export async function insertScores(
     w_momentum:            s.w_momentum,
     w_defensibility:       s.w_defensibility,
     composite_score:       s.composite_score,
+    covered_dimensions:    s.covered_dimensions ?? null,
     fields_applicable:     s.fields_applicable,
     fields_collected:      s.fields_collected,
     fields_unknown:        s.fields_unknown,

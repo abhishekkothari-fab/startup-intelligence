@@ -238,7 +238,9 @@ export default function HomePage() {
 
       {/* Top bar */}
       <header style={{
-        background: "var(--navy)", padding: "0 1.5rem",
+        background: "linear-gradient(135deg, #0f2d52 0%, #1e3a5f 70%, #1a3659 100%)",
+        borderBottom: "1px solid rgba(251,191,36,0.2)",
+        padding: "0 1.5rem",
         height: 56, display: "flex", alignItems: "center", justifyContent: "space-between"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -463,19 +465,19 @@ export default function HomePage() {
                 {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
               </colgroup>
               <thead>
-                <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
+                <tr style={{ background: "var(--navy)" }}>
                   {COL_DEFS.map(({ label, sortKey, tooltip }, i) => {
                     const isActive = sortKey && sort === sortKey
                     return (
                       <th key={label || "__view"} title={tooltip}
                         style={{ ...thStyle, position: "relative", userSelect: "none", cursor: sortKey ? "pointer" : "default", whiteSpace: "nowrap" }}
                         onClick={() => sortKey && handleColSort(sortKey)}>
-                        <span style={{ color: isActive ? "var(--navy)" : undefined }}>
+                        <span style={{ color: isActive ? "#fbbf24" : undefined }}>
                           {label}
                           {tooltip && <span style={{ marginLeft: 3, opacity: 0.5, fontSize: 9 }}>ⓘ</span>}
                         </span>
                         {sortKey && (
-                          <span style={{ marginLeft: 4, opacity: isActive ? 1 : 0.25, fontSize: 9 }}>
+                          <span style={{ marginLeft: 4, opacity: isActive ? 1 : 0.3, fontSize: 9, color: isActive ? "#fbbf24" : undefined }}>
                             {isActive ? (dir === "desc" ? "↓" : "↑") : "↕"}
                           </span>
                         )}
@@ -483,7 +485,7 @@ export default function HomePage() {
                           <div
                             onMouseDown={e => { e.stopPropagation(); startResize(i, e) }}
                             style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 5, cursor: "col-resize", zIndex: 1 }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "var(--border-md)")}
+                            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
                             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                           />
                         )}
@@ -752,7 +754,8 @@ function FilterMultiSelect({ values, onChange, options, label }: {
 const thStyle: React.CSSProperties = {
   textAlign: "left", padding: "8px 12px",
   fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase",
-  letterSpacing: "0.06em", color: "var(--text-xs)", fontWeight: 500
+  letterSpacing: "0.06em", color: "rgba(255,255,255,0.75)", fontWeight: 500,
+  borderBottom: "none"
 }
 const tdStyle: React.CSSProperties = {
   padding: "10px 12px", color: "var(--text-m)", verticalAlign: "middle"

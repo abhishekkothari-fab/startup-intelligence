@@ -46,8 +46,10 @@ const NAV_GROUPS = [
 
 const SEC: React.CSSProperties = {
   padding: "2.25rem 2.5rem",
-  borderBottom: "1px solid var(--border)",
   background: "#fff",
+  borderRadius: 12,
+  boxShadow: "var(--shadow-sm)",
+  margin: "1.25rem",
 }
 
 export default function ProfilePage({
@@ -143,6 +145,7 @@ export default function ProfilePage({
   const sc    = profile.latest_score
   const raw   = profile.raw_summary
   const score = sc?.composite_score ?? 0
+  const scoreGlowColor = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444"
   const rv    = (name: string) => rawVal(raw, name)
 
   async function handleRescore() {
@@ -200,7 +203,7 @@ export default function ProfilePage({
     }))
     .filter(f => f.name)
   const products = [1,2,3,4,5]
-    .map(n => ({ name: rv(`product_${n}_name`), type: rv(`product_${n}_type`), description: rv(`product_${n}_description`) }))
+    .map(n => ({ name: rv(`product_${n}_name`), type: rv(`product_${n}_type`), description: rv(`product_${n}_description`), url: rv(`product_${n}_url`) }))
     .filter(p => p.name)
   const roundHistory = [1,2,3,4,5,6]
     .map(n => ({
@@ -270,7 +273,7 @@ export default function ProfilePage({
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
 
       {/* ── TOPBAR ── */}
-      <header style={{ position: "fixed", top: 0, left: 0, right: 0, height: 56, background: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 1.5rem", zIndex: 500, boxShadow: "0 1px 0 rgba(255,255,255,0.08)" }}>
+      <header style={{ position: "fixed", top: 0, left: 0, right: 0, height: 56, background: "linear-gradient(135deg, #0f2d52 0%, #1e3a5f 70%, #1a3659 100%)", borderBottom: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 1.5rem", zIndex: 500 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => router.push("/")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.75)", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             ← Leaderboard
@@ -287,8 +290,8 @@ export default function ProfilePage({
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 100, padding: "4px 12px", fontFamily: "var(--mono)", fontSize: 12, fontWeight: 500, color: "#fff" }}>
-            Score: <span style={{ fontWeight: 700, color: "#fbbf24" }}>{score}</span> / 100
+          <div style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${scoreGlowColor}55`, borderRadius: 100, padding: "6px 16px", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 500, color: "#fff", boxShadow: `0 0 10px ${scoreGlowColor}33` }}>
+            Score: <span style={{ fontWeight: 700, color: scoreGlowColor }}>{score}</span> / 100
           </div>
           <button
             onClick={async () => { await createClient().auth.signOut(); router.push("/login") }}
@@ -298,14 +301,14 @@ export default function ProfilePage({
       </header>
 
       {/* ── SIDEBAR ── */}
-      <nav style={{ position: "fixed", top: 56, left: 0, bottom: 0, width: 240, background: "#fff", borderRight: "1px solid var(--border)", overflowY: "auto", zIndex: 400 }}>
+      <nav style={{ position: "fixed", top: 56, left: 0, bottom: 0, width: 240, background: "#fff", borderRight: "1px solid var(--border)", boxShadow: "2px 0 8px rgba(17,19,24,0.04)", overflowY: "auto", zIndex: 400 }}>
         {NAV_GROUPS.map(({ group, items }) => (
           <div key={group} style={{ paddingTop: "1.25rem" }}>
             <div style={{ fontFamily: "var(--mono)", fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-xs)", padding: "0 1rem 0.4rem" }}>{group}</div>
             {items.map(({ n, id, label }) => {
               const active = activeSection === id
               return (
-                <a key={id} href={`#${id}`} onClick={scrollTo(id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 1rem", fontSize: 13, fontWeight: active ? 500 : 400, color: active ? "var(--navy)" : "var(--text-s)", borderLeft: `2px solid ${active ? "var(--navy)" : "transparent"}`, background: active ? "var(--blue-lt)" : "transparent", textDecoration: "none", transition: "all 0.12s" }}>
+                <a key={id} href={`#${id}`} onClick={scrollTo(id)} style={{ display: "flex", alignItems: "center", gap: 8, margin: "1px 0.5rem", padding: "7px 1rem 7px 0.875rem", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "#fff" : "var(--text-s)", borderLeft: `3px solid ${active ? "#fbbf24" : "transparent"}`, background: active ? "var(--navy)" : "transparent", textDecoration: "none", transition: "all 0.12s", borderRadius: "0 6px 6px 0" }}>
                   <span style={{ fontFamily: "var(--mono)", fontSize: 9, opacity: 0.5, minWidth: 18 }}>{n}</span>
                   {label}
                 </a>
@@ -356,15 +359,15 @@ export default function ProfilePage({
         {/* ── S01 KEY METRICS ── */}
         <section data-sec="s01" id="s01" style={SEC}>
           <SecHeader n="01" title="Key Metrics" />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: "1.5rem" }}>
             <StatCard label={revFY ? `Revenue ${revFY}` : "Revenue"}
               value={s.revenue_inr_cr ? `₹${str(s.revenue_inr_cr)} Cr` : rv("revenue_fy1_inr_cr") ? `₹${rv("revenue_fy1_inr_cr")} Cr` : "—"}
               sub={[s.revenue_yoy_pct ? `+${str(s.revenue_yoy_pct)}% YoY` : "", nextTarget ? `FY target ₹${nextTarget} Cr` : ""].filter(Boolean).join(" · ")}
               color="var(--navy)" />
-            <StatCard label="Net Profit"
+            <StatCard label={Boolean(s.is_profitable) ? "Net Profit" : s.net_profit_inr_cr ? "Net Loss" : "Net Profit / Loss"}
               value={s.net_profit_inr_cr ? `₹${str(s.net_profit_inr_cr)} Cr` : "—"}
-              sub={Boolean(s.is_profitable) ? "Profitable ✓" : s.net_profit_inr_cr ? "Net Loss" : ""}
-              color={Boolean(s.is_profitable) ? "var(--green)" : undefined} />
+              sub={Boolean(s.is_profitable) ? "Profitable ✓" : ""}
+              color={Boolean(s.is_profitable) ? "var(--green)" : s.net_profit_inr_cr ? "var(--red)" : undefined} />
             <StatCard label="Latest Round"
               value={s.last_round_size_inr_cr ? `₹${str(s.last_round_size_inr_cr)} Cr` : s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M total` : "—"}
               sub={[str(s.last_round_type), str(s.last_round_date).slice(0,7)].filter(Boolean).join(" · ")} />
@@ -398,16 +401,16 @@ export default function ProfilePage({
                   {nextTarget && <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--blue)", background: "var(--blue-bg)", border: "1px solid var(--blue-bd)", borderRadius: 4, padding: "3px 8px" }}>Target ₹{nextTarget} Cr</span>}
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 110, paddingBottom: 22, position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 130, paddingBottom: 22, position: "relative" }}>
                 <div style={{ position: "absolute", bottom: 22, left: 0, right: 0, height: 1, background: "var(--border-md)" }}/>
                 {revenueHistory.map((r, i, arr) => {
                   const pct = maxRev > 0 ? Math.max(5, Math.round((parseFloat(r.inr) / maxRev) * 88)) : 5
                   const isCur = i === arr.length - 1
                   return (
                     <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
-                      <div style={{ position: "absolute", top: -17, left: "50%", transform: "translateX(-50%)", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 500 : 400, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>₹{r.inr}</div>
+                      <div style={{ position: "absolute", top: -22, left: "50%", transform: "translateX(-50%) rotate(-35deg)", transformOrigin: "center bottom", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 500 : 400, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>₹{r.inr}</div>
                       <div style={{ width: "100%", height: pct, background: isCur ? "var(--navy)" : "var(--blue-md)", borderRadius: "3px 3px 0 0" }}/>
-                      <div style={{ marginTop: 5, fontFamily: "var(--mono)", fontSize: 9, color: isCur ? "var(--navy)" : "var(--text-xs)", fontWeight: isCur ? 500 : 400 }}>{r.year}</div>
+                      <div style={{ marginTop: 5, fontFamily: "var(--mono)", fontSize: 9, color: isCur ? "var(--navy)" : "var(--text-s)", fontWeight: isCur ? 500 : 400 }}>{r.year}</div>
                     </div>
                   )
                 })}
@@ -468,15 +471,15 @@ export default function ProfilePage({
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "var(--bg-soft)" }}>
+                  <tr style={{ background: "var(--navy)" }}>
                     {["Entity", "Role / Purpose", "Note"].map(h => (
-                      <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                      <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {allEntities.map((e, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                    <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: "#fff" }}>
                       <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 600, whiteSpace: "nowrap" }}>{e.name}</td>
                       <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-m)", lineHeight: 1.5 }}>{e.role || "—"}</td>
                       <td style={{ padding: "0.75rem 1rem", fontSize: 12, color: "var(--text-s)", lineHeight: 1.5 }}>{e.note || "—"}</td>
@@ -524,7 +527,13 @@ export default function ProfilePage({
                           const label = edu.includes("isb") ? "ISB" : edu.includes("iim") ? "IIM" : edu.includes("iit") ? "IIT" : "Premier"
                           return <span style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>{label}</span>
                         })()}
-                        {f.linkedinUrl && <a href={f.linkedinUrl} target="_blank" rel="noreferrer" style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--blue)", textDecoration: "none" }}>↗ LI</a>}
+                        {f.linkedinUrl && (
+                          <a href={f.linkedinUrl} target="_blank" rel="noreferrer" title="LinkedIn" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#0A66C2" style={{ display: "block" }}>
+                              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                            </svg>
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -539,13 +548,13 @@ export default function ProfilePage({
                   <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
-                        <tr style={{ background: "var(--bg-soft)" }}>
-                          {["Name","Role","Background"].map(h => <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>)}
+                        <tr style={{ background: "var(--navy)" }}>
+                          {["Name","Role","Background"].map(h => <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
                         {cxos.map((c, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                          <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: "#fff" }}>
                             <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-h)", fontWeight: 600, whiteSpace: "nowrap" }}>{c.name}</td>
                             <td style={{ padding: "0.75rem 1rem" }}>
                               <span style={{ display: "inline-block", fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4, background: "var(--bg-soft)", color: "var(--navy)", border: "1px solid var(--border-md)" }}>{c.role || "—"}</span>
@@ -578,11 +587,18 @@ export default function ProfilePage({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
                   <div>
                     <div style={{ fontFamily: "var(--serif)", fontSize: 18, fontWeight: 700, color: "var(--text-h)", marginBottom: "0.5rem" }}>{products[activeProd].name}</div>
-                    {products[activeProd].type && (
-                      <span style={{ display: "inline-block", fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", padding: "2px 7px", borderRadius: 4, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)", marginBottom: "0.75rem" }}>
-                        {products[activeProd].type}
-                      </span>
-                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.75rem" }}>
+                      {products[activeProd].type && (
+                        <span style={{ display: "inline-block", fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", padding: "2px 7px", borderRadius: 4, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>
+                          {products[activeProd].type}
+                        </span>
+                      )}
+                      {products[activeProd].url && (
+                        <a href={products[activeProd].url} target="_blank" rel="noreferrer" style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--blue)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3, border: "1px solid var(--blue-md)", borderRadius: 4, padding: "2px 7px", background: "var(--blue-lt)" }}>
+                          Visit ↗
+                        </a>
+                      )}
+                    </div>
                     {products[activeProd].description && (
                       <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7 }}>{products[activeProd].description}</p>
                     )}
@@ -615,9 +631,9 @@ export default function ProfilePage({
               <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "var(--bg-soft)" }}>
+                    <tr style={{ background: "var(--navy)" }}>
                       {["Date","Round","Amount","Lead / Investors","Context"].map(h => (
-                        <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                        <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -625,7 +641,7 @@ export default function ProfilePage({
                     {roundHistory.map((r, i) => {
                       const isLatest = i === 0
                       return (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: isLatest ? "var(--amber-lt)" : i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: isLatest ? "var(--amber-lt)" : "#fff" }}>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: isLatest ? "var(--amber)" : "var(--text-m)", fontWeight: isLatest ? 600 : 400 }}>{r.date || "—"}</td>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: isLatest ? "var(--amber)" : "var(--text-h)", fontWeight: isLatest ? 600 : 500 }}>{r.type || "—"}</td>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: isLatest ? "var(--amber)" : "var(--text-h)", fontWeight: isLatest ? 600 : 400 }}>{r.amount_usd_m ? `$${r.amount_usd_m}M` : "—"}</td>
@@ -677,15 +693,15 @@ export default function ProfilePage({
                 <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ background: "var(--bg-soft)" }}>
+                      <tr style={{ background: "var(--navy)" }}>
                         {["Competitor","Stage","Total Raised"].map(h => (
-                          <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                          <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {competitors.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: "#fff" }}>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{c.name}</td>
                           <td style={{ padding: "0.75rem 1rem" }}>
                             {c.stage
@@ -719,18 +735,18 @@ export default function ProfilePage({
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "var(--bg-soft)" }}>
+                  <tr style={{ background: "var(--navy)" }}>
                     {(hasStructuredPartnerships
                       ? ["Partner","Category","Use Case","Signal Strength"]
                       : ["#","Partnership Detail"]
                     ).map(h => (
-                      <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                      <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {partnerships.map((p, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                    <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: "#fff" }}>
                       {hasStructuredPartnerships ? (
                         <>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{p.partner}</td>
@@ -1192,11 +1208,11 @@ function SecHeader({ n, title, badge, action }: { n: string; title: string; badg
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color?: string }) {
   return (
-    <div style={{ background: "#fff", padding: "1.125rem 1.25rem", transition: "background 0.15s" }}
-      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
-      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "#fff"}>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 500, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
+    <div style={{ background: "#fff", padding: "1.25rem 1.375rem", borderRadius: 8, border: "1px solid var(--border)", transition: "box-shadow 0.15s, border-color 0.15s" }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(17,19,24,0.08)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 3 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )

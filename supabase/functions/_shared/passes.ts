@@ -203,6 +203,7 @@ Capture these field_names (field_pack must be "products" for all):
 - product_1_name through product_5_name: product names, most prominent first
 - product_1_description through product_5_description: one-sentence description of each product
 - product_1_type through product_5_type: B2B|B2C|B2B2C for each product
+- product_1_url through product_5_url: direct URL to the product's page on the company website (e.g. https://company.com/product-name); null if no dedicated page found
 - has_api: yes/no — does the company offer a developer API
 - has_mobile_app: yes/no
 - has_technical_moat: yes/no — followed by a brief reason in parentheses

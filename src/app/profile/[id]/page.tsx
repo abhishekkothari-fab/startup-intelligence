@@ -534,7 +534,7 @@ export default function ProfilePage({
                           const label = edu.includes("isb") ? "ISB" : edu.includes("iim") ? "IIM" : edu.includes("iit") ? "IIT" : "Premier"
                           return <span style={{ fontFamily: "var(--mono)", fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "var(--blue-lt)", color: "var(--navy)", border: "1px solid var(--blue-md)" }}>{label}</span>
                         })()}
-                        {f.linkedinUrl && (
+                        {f.linkedinUrl && f.linkedinUrl.startsWith("http") && (
                           <a href={f.linkedinUrl} target="_blank" rel="noreferrer" title="LinkedIn" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="#0A66C2" style={{ display: "block" }}>
                               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
@@ -697,31 +697,13 @@ export default function ProfilePage({
               </div>
 
               {competitors.length > 0 && (
-                <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ background: "var(--navy)" }}>
-                        {["Competitor","Stage","Total Raised"].map(h => (
-                          <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {competitors.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: "#fff" }}>
-                          <td style={{ padding: "0.75rem 1rem", fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{c.name}</td>
-                          <td style={{ padding: "0.75rem 1rem" }}>
-                            {c.stage
-                              ? <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4, background: "var(--bg-soft)", color: "var(--navy)", border: "1px solid var(--border-md)" }}>{c.stage.replace(/_/g," ")}</span>
-                              : <span style={{ color: "var(--text-xs)", fontStyle: "italic", fontSize: 12 }}>—</span>}
-                          </td>
-                          <td style={{ padding: "0.75rem 1rem", fontFamily: "var(--mono)", fontSize: 13, color: c.funding ? "var(--text-m)" : "var(--text-xs)", fontStyle: c.funding ? "normal" : "italic" }}>
-                            {c.funding ? `$${c.funding}M` : "undisclosed"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: "0.625rem" }}>Key Competitors</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    {competitors.map((c, i) => (
+                      <span key={i} style={{ padding: "0.375rem 0.875rem", borderRadius: 20, background: "var(--bg-soft)", border: "1px solid var(--border-md)", fontSize: 13, fontWeight: 500, color: "var(--navy)" }}>{c.name}</span>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1219,7 +1201,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(17,19,24,0.08)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 500, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
+      <div style={{ fontSize: value.length > 24 ? 12 : value.length > 16 ? 15 : 20, fontWeight: 500, color: color || "var(--text-h)", lineHeight: 1.2, marginBottom: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )

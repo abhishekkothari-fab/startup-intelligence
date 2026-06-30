@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
@@ -21,6 +21,21 @@ const S: Record<string, string> = {
   pre_seed: "Pre-seed", seed: "Seed", series_a: "Series A",
   series_b_plus: "Series B+", growth: "Growth"
 }
+
+const COL_DEFS = [
+  { label: "Rank",      w: 52  },
+  { label: "Company",   w: 210 },
+  { label: "Stage",     w: 100 },
+  { label: "Industry",  w: 120 },
+  { label: "Revenue",   w: 105 },
+  { label: "Raised",    w: 105 },
+  { label: "Score",     w: 68  },
+  { label: "DQ",        w: 58  },
+  { label: "Scorecard", w: 160 },
+  { label: "Refreshed", w: 95  },
+  { label: "Scored",    w: 95  },
+  { label: "",          w: 68  },
+]
 
 export default function HomePage() {
   const router = useRouter()
@@ -45,6 +60,25 @@ export default function HomePage() {
   const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [triggering,setTriggering]= useState(false)
   const [error,     setError]     = useState("")
+  const [colWidths, setColWidths] = useState(() => COL_DEFS.map(c => c.w))
+  const resizingCol = useRef<{ col: number; startX: number; startW: number } | null>(null)
+
+  function startResize(i: number, e: React.MouseEvent) {
+    e.preventDefault()
+    resizingCol.current = { col: i, startX: e.clientX, startW: colWidths[i] }
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingCol.current) return
+      const { col, startX, startW } = resizingCol.current
+      setColWidths(prev => prev.map((w, idx) => idx === col ? Math.max(44, startW + ev.clientX - startX) : w))
+    }
+    const onUp = () => {
+      resizingCol.current = null
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+    document.addEventListener("mousemove", onMove)
+    document.addEventListener("mouseup", onUp)
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
@@ -150,7 +184,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <main style={{ flex: 1, maxWidth: 1100, margin: "0 auto", padding: "1.5rem", width: "100%" }}>
+      <main style={{ flex: 1, maxWidth: 1520, margin: "0 auto", padding: "1.5rem", width: "100%" }}>
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 10, marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -182,26 +216,25 @@ export default function HomePage() {
             <button onClick={() => setShowModal(true)} style={btnPrimary}>Profile your first startup →</button>
           </div>
         ) : (
-          <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflowX: "auto" }}>
+            <table style={{ width: colWidths.reduce((a, b) => a + b, 0), minWidth: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: 44 }} />
-                <col style={{ width: 180 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 100 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 60 }} />
-                <col style={{ width: 52 }} />
-                <col style={{ width: 130 }} />
-                <col style={{ width: 82 }} />
-                <col style={{ width: 82 }} />
-                <col style={{ width: 58 }} />
+                {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
               </colgroup>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
-                  {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ","Scorecard","Refreshed","Scored",""].map(h => (
-                    <th key={h} style={thStyle}>{h}</th>
+                  {COL_DEFS.map(({ label }, i) => (
+                    <th key={label || "__view"} style={{ ...thStyle, position: "relative", userSelect: "none" }}>
+                      {label}
+                      {i < COL_DEFS.length - 1 && (
+                        <div
+                          onMouseDown={e => startResize(i, e)}
+                          style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 5, cursor: "col-resize", zIndex: 1 }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "var(--border-md)")}
+                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                        />
+                      )}
+                    </th>
                   ))}
                 </tr>
               </thead>

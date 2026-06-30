@@ -138,6 +138,7 @@ export default function HomePage() {
   const [jobPasses,  setJobPasses]  = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [triggering, setTriggering] = useState(false)
   const [error,      setError]      = useState("")
+  const [usage,      setUsage]      = useState<{ role: "admin" | "standard"; used: number; limit: number } | null>(null)
   const [colWidths,  setColWidths]  = useState(() => COL_DEFS.map(c => c.w))
   const resizingCol = useRef<{ col: number; startX: number; startW: number } | null>(null)
 
@@ -145,6 +146,20 @@ export default function HomePage() {
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
   }, [])
+
+  // Fetch role + free-pull usage for the badge in the header
+  useEffect(() => {
+    if (!userEmail) return
+    const supabase = createClient()
+    supabase.from("allowed_emails").select("role, bonus_pulls").eq("email", userEmail).maybeSingle()
+      .then(({ data }) => {
+        const role = data?.role === "admin" ? "admin" : "standard"
+        if (role === "admin") { setUsage({ role, used: 0, limit: 0 }); return }
+        const limit = 25 + (data?.bonus_pulls ?? 0)
+        supabase.from("profile_pulls").select("id", { count: "exact", head: true }).eq("user_email", userEmail)
+          .then(({ count }) => setUsage({ role, used: count ?? 0, limit }))
+      })
+  }, [userEmail])
 
   // Column resize
   function startResize(i: number, e: React.MouseEvent) {
@@ -253,6 +268,15 @@ export default function HomePage() {
           <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Launchpad</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {usage?.role === "admin" && (
+            <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "var(--mono)" }}>ADMIN</span>
+          )}
+          {usage?.role === "standard" && (
+            <span style={{
+              color: usage.used >= usage.limit ? "#fca5a5" : "rgba(255,255,255,0.7)",
+              fontSize: 12, fontFamily: "var(--mono)"
+            }}>{usage.used}/{usage.limit} profiles used</span>
+          )}
           <button
             onClick={() => setShowModal(true)}
             style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: 500 }}

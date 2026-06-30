@@ -89,6 +89,57 @@ serve(async (req) => {
     return json({ job_id: existingJobId, status: "running" }, 202);
   }
 
+  // ── Usage gate: classify the pull, enforce the standard-tier free limit ─────
+  // Runs for every user-facing call (new profile, re-profile, or sub-section re-run),
+  // including ones that end up served from cache below — a cache hit still consumes a pull.
+  const { data: existingStartup } = await supabase
+    .from("startups")
+    .select("id")
+    .ilike("brand_name", company.trim())
+    .eq("hq_country", country)
+    .maybeSingle();
+
+  const pullType: "new" | "reprofile" | "subsection" =
+    only_passes?.length ? "subsection" : existingStartup ? "reprofile" : "new";
+
+  if (requested_by) {
+    const email = requested_by.trim().toLowerCase();
+    const { data: account } = await supabase
+      .from("allowed_emails")
+      .select("role, bonus_pulls")
+      .eq("email", email)
+      .maybeSingle();
+
+    // Unknown email (shouldn't happen — login requires whitelist membership): skip
+    // limit enforcement and tracking rather than fail the request.
+    if (account) {
+      if (account.role !== "admin") {
+        const limit = 25 + (account.bonus_pulls ?? 0);
+        const { count } = await supabase
+          .from("profile_pulls")
+          .select("id", { count: "exact", head: true })
+          .eq("user_email", email);
+
+        if ((count ?? 0) >= limit) {
+          return json({
+            error:      "limit_reached",
+            message:    `You've used all ${limit} free profile pulls. Contact an admin to unlock more.`,
+            pulls_used: count ?? 0,
+            pulls_limit: limit,
+          }, 403);
+        }
+      }
+
+      await supabase.from("profile_pulls").insert({
+        user_email:   email,
+        startup_id:   existingStartup?.id ?? null,
+        company_name: company.trim(),
+        pull_type:    pullType,
+        passes:       only_passes?.length ? only_passes : null,
+      });
+    }
+  }
+
   // ── Return cached result if profiled within 7 days ──────────────────────────
   if (!only_passes?.length) {
     const { data: existing } = await supabase

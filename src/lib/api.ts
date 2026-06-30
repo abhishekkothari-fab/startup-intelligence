@@ -161,8 +161,20 @@ export async function triggerProfile(company: string, country = "IN", requestedB
     headers: headers(),
     body: JSON.stringify({ company, country, ...(requestedBy ? { requested_by: requestedBy } : {}) }),
   })
-  if (!res.ok) throw new Error(`Trigger failed: ${await res.text()}`)
+  if (!res.ok) throw new Error(await errorMessage(res))
   return res.json()
+}
+
+// Edge functions return { error, message } JSON on failure (e.g. limit_reached); fall
+// back to the raw response text if the body isn't JSON.
+async function errorMessage(res: Response): Promise<string> {
+  const text = await res.text()
+  try {
+    const body = JSON.parse(text)
+    return body.message || body.error || text
+  } catch {
+    return text
+  }
 }
 
 // ── Poll job status ──────────────────────────────────────────────
@@ -235,7 +247,7 @@ export async function triggerFill(
       ...(requestedBy ? { requested_by: requestedBy } : {}),
     }),
   })
-  if (!res.ok) throw new Error(`Fill trigger failed: ${await res.text()}`)
+  if (!res.ok) throw new Error(await errorMessage(res))
   return res.json()
 }
 

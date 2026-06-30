@@ -766,19 +766,10 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
 
   // Coverage-adjusted composite: only score dimensions with evidence.
   // Fixed: defensibility gate now reads has_technical_moat + moat_type (what passes actually store).
-  // Late-stage fix: at series_b_plus+, absent traction scores at floor 15 rather than being
-  // excluded — absence of any traction signal at that stage is itself a yellow flag.
-  const LATE_STAGES = new Set(["series_b_plus", "growth", "pre_ipo", "ipo"])
-  const tractionCovered = !!(
-    parseFloat(fm["revenue_fy1_inr_cr"] || "0") > 0 ||
-    merged.revenue_inr_cr != null ||
-    fm["client_count"] || fm["gmv_inr_cr"] || fm["order_count_monthly"]
-  )
-  const lateStageNoTraction = !tractionCovered && LATE_STAGES.has(stage)
-
+  // Coverage cap (30 + dims*9) handles late-stage missing traction — a floor score was too punishing.
   const hasCoverage: Record<string, boolean> = {
     team:          !!(fm["founder_1_education"] || fm["founder_1_domain_years"] || fm["founder_1_prior_exit"] || fm["founder_1_prior_employer_type"] || merged.glassdoor_rating),
-    traction:      tractionCovered || lateStageNoTraction,
+    traction:      !!(parseFloat(fm["revenue_fy1_inr_cr"] || "0") > 0 || merged.revenue_inr_cr != null || fm["client_count"] || fm["gmv_inr_cr"] || fm["order_count_monthly"]),
     capital:       !!(merged.total_raised_usd_m != null || fm["round_count"] || fm["investor_1_name"] || fm["investor_1_tier"]),
     product:       !!(fm["product_1_name"] || fm["has_api"] || fm["has_mobile_app"]),
     market:        true,
@@ -787,12 +778,9 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
     defensibility: !!(fm["has_technical_moat"] || fm["moat_type"] || fm["patent_count"] || fm["patent_1_status"] || fm["network_effects_strength"] || fm["regulatory_license"]),
   }
 
-  // For late-stage companies with no traction data, score at floor to signal the gap
-  const effectiveDimTraction = lateStageNoTraction ? 15 : dimTraction
-
   const allDims = [
-    { key: "team",          score: dimTeam,              w: wt  },
-    { key: "traction",      score: effectiveDimTraction, w: wtr },
+    { key: "team",          score: dimTeam,         w: wt  },
+    { key: "traction",      score: dimTraction,     w: wtr },
     { key: "capital",       score: dimCapital,            w: wc  },
     { key: "product",       score: dimProduct,            w: wp  },
     { key: "market",        score: dimMarket,             w: wm  },

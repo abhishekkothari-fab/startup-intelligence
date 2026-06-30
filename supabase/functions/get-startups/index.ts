@@ -24,10 +24,18 @@ serve(async (req) => {
   const url        = new URL(req.url);
   const page       = Math.max(1, parseInt(url.searchParams.get("page")  ?? "1"));
   const limit      = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20")));
-  const stage      = url.searchParams.get("stage");
-  const industry   = url.searchParams.get("industry");
-  const scorecard  = url.searchParams.get("scorecard");
-  const profiledBy = url.searchParams.get("profiled_by");
+  const stageRaw     = url.searchParams.get("stage");
+  const industryRaw  = url.searchParams.get("industry");
+  const scorecardRaw = url.searchParams.get("scorecard");
+  const profiledBy   = url.searchParams.get("profiled_by");
+
+  // Multi-value: comma-separated lists
+  const stages     = stageRaw     ? stageRaw.split(",").map(s => s.trim()).filter(Boolean)     : [];
+  const industries = industryRaw  ? industryRaw.split(",").map(s => s.trim()).filter(Boolean)  : [];
+  const scorecards = scorecardRaw ? scorecardRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+  const stage      = stageRaw;     // kept for response metadata
+  const industry   = industryRaw;
+  const scorecard  = scorecardRaw;
   const search     = url.searchParams.get("search");
   const sortBy     = url.searchParams.get("sort") ?? "composite_score";
 
@@ -56,11 +64,11 @@ serve(async (req) => {
     .from("leaderboard")
     .select("*", { count: "exact" });
 
-  if (stage)       query = query.eq("stage", stage);
-  if (industry)    query = query.ilike("industry", `%${industry}%`);
-  if (scorecard)   query = query.eq("primary_scorecard", scorecard);
-  if (search)      query = query.ilike("brand_name", `%${search}%`);
-  if (allowedIds)  query = query.in("id", allowedIds);
+  if (stages.length > 0)     query = query.in("stage", stages);
+  if (industries.length > 0) query = query.or(industries.map(i => `industry.ilike.%${i}%`).join(","));
+  if (scorecards.length > 0) query = query.in("primary_scorecard", scorecards);
+  if (search)                query = query.ilike("brand_name", `%${search}%`);
+  if (allowedIds)            query = query.in("id", allowedIds);
 
   query = query
     .order(sort, { ascending, nullsFirst: false })

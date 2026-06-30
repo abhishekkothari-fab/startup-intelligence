@@ -235,21 +235,21 @@ export async function getStartups(params?: {
   sort?:        string
   dir?:         string
   search?:      string
-  stage?:       string
-  industry?:    string
-  scorecard?:   string
+  stage?:       string[]
+  industry?:    string[]
+  scorecard?:   string[]
   profiled_by?: string
 }): Promise<{ data: StartupRow[]; total: number; pages: number }> {
   const qs = new URLSearchParams()
-  if (params?.page)        qs.set("page",        String(params.page))
-  if (params?.limit)       qs.set("limit",       String(params.limit))
-  if (params?.sort)        qs.set("sort",        params.sort)
-  if (params?.dir)         qs.set("dir",         params.dir)
-  if (params?.search)      qs.set("search",      params.search)
-  if (params?.stage)       qs.set("stage",       params.stage)
-  if (params?.industry)    qs.set("industry",    params.industry)
-  if (params?.scorecard)   qs.set("scorecard",   params.scorecard)
-  if (params?.profiled_by) qs.set("profiled_by", params.profiled_by)
+  if (params?.page)                    qs.set("page",        String(params.page))
+  if (params?.limit)                   qs.set("limit",       String(params.limit))
+  if (params?.sort)                    qs.set("sort",        params.sort)
+  if (params?.dir)                     qs.set("dir",         params.dir)
+  if (params?.search)                  qs.set("search",      params.search)
+  if (params?.stage?.length)           qs.set("stage",       params.stage.join(","))
+  if (params?.industry?.length)        qs.set("industry",    params.industry.join(","))
+  if (params?.scorecard?.length)       qs.set("scorecard",   params.scorecard.join(","))
+  if (params?.profiled_by)             qs.set("profiled_by", params.profiled_by)
   const res = await fetch(`${BASE}/get-startups?${qs}`, { headers: headers() })
   if (!res.ok) throw new Error(`Leaderboard fetch failed: ${await res.text()}`)
   return res.json()

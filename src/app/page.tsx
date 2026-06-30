@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
@@ -117,10 +117,10 @@ export default function HomePage() {
   // View mode
   const [viewMode, setViewMode] = useState<"all"|"mine">("all")
 
-  // Column filters
-  const [filterStage,     setFilterStage]     = useState("")
-  const [filterIndustry,  setFilterIndustry]  = useState("")
-  const [filterScorecard, setFilterScorecard] = useState("")
+  // Column filters (multi-select)
+  const [filterStage,     setFilterStage]     = useState<string[]>([])
+  const [filterIndustry,  setFilterIndustry]  = useState<string[]>([])
+  const [filterScorecard, setFilterScorecard] = useState<string[]>([])
 
   // Search
   const [search,          setSearch]          = useState("")
@@ -182,10 +182,10 @@ export default function HomePage() {
     setLoading(true)
     getStartups({
       page, sort, dir,
-      search:      debouncedSearch   || undefined,
-      stage:       filterStage       || undefined,
-      industry:    filterIndustry    || undefined,
-      scorecard:   filterScorecard   || undefined,
+      search:      debouncedSearch || undefined,
+      stage:       filterStage.length     > 0 ? filterStage     : undefined,
+      industry:    filterIndustry.length  > 0 ? filterIndustry  : undefined,
+      scorecard:   filterScorecard.length > 0 ? filterScorecard : undefined,
       profiled_by: viewMode === "mine" ? (userEmail ?? undefined) : undefined,
     })
       .then(r => { setRows(r.data); setTotal(r.total) })
@@ -200,10 +200,10 @@ export default function HomePage() {
   }
 
   function resetFilters() {
-    setFilterStage(""); setFilterIndustry(""); setFilterScorecard(""); setPage(1)
+    setFilterStage([]); setFilterIndustry([]); setFilterScorecard([]); setPage(1)
   }
 
-  const hasFilters = !!(filterStage || filterIndustry || filterScorecard)
+  const hasFilters = filterStage.length > 0 || filterIndustry.length > 0 || filterScorecard.length > 0
 
   async function handleTrigger() {
     if (!company.trim()) return
@@ -399,22 +399,22 @@ export default function HomePage() {
 
           {/* Filter pills */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <FilterSelect
-              value={filterStage}
+            <FilterMultiSelect
+              values={filterStage}
               onChange={v => { setFilterStage(v); setPage(1) }}
-              options={STAGE_OPTIONS}
+              options={STAGE_OPTIONS.filter(o => o.value)}
               label="Stage"
             />
-            <FilterSelect
-              value={filterIndustry}
+            <FilterMultiSelect
+              values={filterIndustry}
               onChange={v => { setFilterIndustry(v); setPage(1) }}
-              options={INDUSTRY_OPTIONS}
+              options={INDUSTRY_OPTIONS.filter(o => o.value)}
               label="Industry"
             />
-            <FilterSelect
-              value={filterScorecard}
+            <FilterMultiSelect
+              values={filterScorecard}
               onChange={v => { setFilterScorecard(v); setPage(1) }}
-              options={SCORECARD_OPTIONS}
+              options={SCORECARD_OPTIONS.filter(o => o.value)}
               label="Scorecard"
             />
             {hasFilters && (
@@ -513,7 +513,7 @@ export default function HomePage() {
                           </span>
                         : <span style={{ color: "var(--text-xs)" }}>—</span>}
                     </td>
-                    <td style={{ ...tdStyle, color: "var(--text-s)" }}>{r.industry || "—"}</td>
+                    <td style={{ ...tdStyle, color: "var(--text-s)" }}>{fmtIndustry(r.industry)}</td>
                     <td style={tdStyle}>{r.revenue_inr_cr ? `₹${r.revenue_inr_cr} Cr` : "—"}</td>
                     <td style={tdStyle}>{r.total_raised_usd_m ? `$${r.total_raised_usd_m}M` : "—"}</td>
                     <td style={{ ...tdStyle, fontWeight: 700, fontSize: 15, color: scoreColor(r.composite_score) }}>
@@ -657,44 +657,93 @@ export default function HomePage() {
   )
 }
 
-// ── FilterSelect component ───────────────────────────────────────
-function FilterSelect({ value, onChange, options, label }: {
-  value: string
-  onChange: (v: string) => void
+// ── FilterMultiSelect component ──────────────────────────────────
+function FilterMultiSelect({ values, onChange, options, label }: {
+  values: string[]
+  onChange: (v: string[]) => void
   options: { value: string; label: string }[]
   label: string
 }) {
-  const active = !!value
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const closeHandler = useCallback((e: MouseEvent) => {
+    if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (open) document.addEventListener("mousedown", closeHandler)
+    return () => document.removeEventListener("mousedown", closeHandler)
+  }, [open, closeHandler])
+
+  function toggle(value: string) {
+    if (values.includes(value)) onChange(values.filter(v => v !== value))
+    else onChange([...values, value])
+  }
+
+  const active = values.length > 0
+  const btnLabel = active
+    ? values.length === 1
+      ? (options.find(o => o.value === values[0])?.label ?? values[0])
+      : `${label} (${values.length})`
+    : label
+
   return (
-    <div style={{ position: "relative" }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
         style={{
-          appearance: "none",
-          WebkitAppearance: "none",
-          padding: "4px 22px 4px 10px",
-          fontSize: 12,
-          fontFamily: "var(--mono)",
-          fontWeight: active ? 600 : 400,
+          display: "flex", alignItems: "center", gap: 5,
+          padding: "4px 10px",
+          fontSize: 12, fontFamily: "var(--mono)", fontWeight: active ? 600 : 400,
           border: `1px solid ${active ? "var(--navy)" : "var(--border-md)"}`,
           borderRadius: 5,
           background: active ? "var(--navy)" : "#fff",
           color: active ? "#fff" : "var(--text-s)",
-          cursor: "pointer",
-          outline: "none",
+          cursor: "pointer", outline: "none",
+          whiteSpace: "nowrap",
         }}
       >
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-      {/* Chevron */}
-      <svg style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
-        width="10" height="10" viewBox="0 0 24 24" fill="none"
-        stroke={active ? "#fff" : "var(--text-xs)"} strokeWidth="2.5">
-        <path d="m6 9 6 6 6-6"/>
-      </svg>
+        {btnLabel}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke={active ? "#fff" : "var(--text-xs)"} strokeWidth="2.5"
+          style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}>
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+          background: "#fff", border: "1px solid var(--border-md)", borderRadius: 7,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+          minWidth: 160, maxHeight: 280, overflowY: "auto",
+          padding: "4px 0",
+        }}>
+          {options.map(o => {
+            const checked = values.includes(o.value)
+            return (
+              <label key={o.value} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "7px 14px", cursor: "pointer", fontSize: 13,
+                color: checked ? "var(--navy)" : "var(--text-m)",
+                fontWeight: checked ? 600 : 400,
+                background: checked ? "var(--bg-soft)" : undefined,
+              }}
+                onMouseEnter={e => { if (!checked) (e.currentTarget as HTMLElement).style.background = "var(--bg-soft)" }}
+                onMouseLeave={e => { if (!checked) (e.currentTarget as HTMLElement).style.background = "" }}
+              >
+                <input
+                  type="checkbox" checked={checked}
+                  onChange={() => toggle(o.value)}
+                  style={{ accentColor: "var(--navy)", width: 13, height: 13 }}
+                />
+                {o.label}
+              </label>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -744,6 +793,16 @@ function stageBadgeStyle(stage?: string): React.CSSProperties {
     background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
     whiteSpace: "nowrap" as const,
   }
+}
+
+// Raw DB industry values → readable display names
+const INDUSTRY_DISPLAY: Record<string, string> = {
+  EdTech_HRTech: "EdTech / HRTech",
+  AI_Infra:      "AI / Infra",
+}
+function fmtIndustry(raw?: string) {
+  if (!raw) return "—"
+  return INDUSTRY_DISPLAY[raw] ?? raw
 }
 
 function scoreColor(score?: number) {

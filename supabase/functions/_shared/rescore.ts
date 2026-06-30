@@ -43,7 +43,7 @@ export async function rescoreStartup(
     }))
 
   const profile: Partial<StartupProfile> = {
-    auto_stage:                     startup.auto_stage,
+    auto_stage:                     startup.stage ?? startup.auto_stage,  // resolved: coalesce(override, auto)
     auto_industry:                  startup.auto_industry,
     auto_industry_sub:              startup.auto_industry_sub,
     auto_region:                    startup.auto_region,
@@ -74,7 +74,7 @@ export async function rescoreStartup(
     startup_id:            startupId,
     status:                "provisional",
     score_version:         "v5.0",
-    stage:                 s.stage || startup.auto_stage,
+    stage:                 s.stage || startup.stage || startup.auto_stage,
     industry:              startup.auto_industry,
     industry_sub:          startup.auto_industry_sub,
     scorecard_ids:         s.scorecard_ids      ?? null,

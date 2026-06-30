@@ -186,7 +186,7 @@ export default function HomePage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
-                  {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ","Scorecard",""].map(h => (
+                  {["Rank","Company","Stage","Industry","Revenue","Raised","Score","DQ","Scorecard","Refreshed","Scored",""].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
@@ -231,6 +231,12 @@ export default function HomePage() {
                           )
                         })}
                       </div>
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>
+                      {relTime(r.last_collected_at)}
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-xs)" }}>
+                      {relTime(r.last_scored_at)}
                     </td>
                     <td style={{ ...tdStyle, color: "var(--blue)" }}>View →</td>
                   </tr>
@@ -392,4 +398,17 @@ function scoreColor(score?: number) {
   if (score >= 80) return "var(--green)"
   if (score >= 60) return "var(--amber)"
   return "var(--red)"
+}
+
+function relTime(iso?: string): string {
+  if (!iso) return "—"
+  const diff = Date.now() - new Date(iso).getTime()
+  const days  = Math.floor(diff / 86400000)
+  const hours = Math.floor(diff / 3600000)
+  const mins  = Math.floor(diff / 60000)
+  if (days > 60)  return `${Math.floor(days / 30)}mo ago`
+  if (days > 0)   return `${days}d ago`
+  if (hours > 0)  return `${hours}h ago`
+  if (mins > 0)   return `${mins}m ago`
+  return "just now"
 }

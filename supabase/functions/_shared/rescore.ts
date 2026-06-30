@@ -1,6 +1,6 @@
 // supabase/functions/_shared/rescore.ts
 // Shared logic: read existing DB data for a startup and recompute scores.
-// Used by rescore-startup edge function and the rescore-all batch script.
+// Used by rescore-startup edge function and upsert-analyst-input (after saving inputs).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { computeScores } from "./scoring.ts"
@@ -12,13 +12,35 @@ export async function rescoreStartup(
   supabase: SupabaseClient,
   startupId: string
 ): Promise<{ scores: StartupProfile["scores"]; brand_name: string; composite_score: number }> {
-  const [{ data: startup, error: e1 }, { data: rawFields = [] }] = await Promise.all([
+  const [
+    { data: startup,       error: e1 },
+    { data: rawFields = [] },
+    { data: analystInputs = [] },
+  ] = await Promise.all([
     supabase.from("startups").select("*").eq("id", startupId).single(),
     supabase.from("raw_fields")
       .select("field_name,field_pack,applicability,applicability_reason,raw_value,data_type,source_type,source_url,confidence")
       .eq("startup_id", startupId),
+    supabase.from("analyst_inputs")
+      .select("field_name,value_num")
+      .eq("startup_id", startupId),
   ])
   if (e1 || !startup) throw new Error(`Startup not found: ${startupId}`)
+
+  // Inject analyst inputs as synthetic raw_fields so computeScores picks them up via fm map
+  const syntheticFields = (analystInputs as { field_name: string; value_num: number | null }[])
+    .filter(ai => ai.value_num !== null)
+    .map(ai => ({
+      field_name:           ai.field_name,
+      field_pack:           "analyst_input",
+      applicability:        "applicable" as const,
+      applicability_reason: null,
+      raw_value:            String(ai.value_num),
+      data_type:            "number",
+      source_type:          "analyst_input",
+      source_url:           null,
+      confidence:           0.95,
+    }))
 
   const profile: Partial<StartupProfile> = {
     auto_stage:                     startup.auto_stage,
@@ -34,12 +56,15 @@ export async function rescoreStartup(
     net_profit_inr_cr:              startup.net_profit_inr_cr,
     total_raised_usd_m:             startup.total_raised_usd_m,
     last_round_date:                startup.last_round_date,
+    last_round_size_inr_cr:         startup.last_round_size_inr_cr,
     team_size:                      startup.team_size,
     client_count:                   startup.client_count,
     is_profitable:                  startup.is_profitable,
     glassdoor_rating:               startup.glassdoor_rating,
     glassdoor_positive_outlook_pct: startup.glassdoor_positive_outlook_pct,
-    raw_fields:                     rawFields as StartupProfile["raw_fields"],
+    geo_analog_company:             startup.geo_analog_company,
+    competitive_density:            startup.competitive_density,
+    raw_fields:                     [...rawFields, ...syntheticFields] as StartupProfile["raw_fields"],
   }
 
   const scored = computeScores(profile)
@@ -61,6 +86,7 @@ export async function rescoreStartup(
     dim_market:            s.dim_market,
     dim_unit_econ:         s.dim_unit_econ,
     dim_momentum:          s.dim_momentum,
+    dim_defensibility:     s.dim_defensibility,
     w_team:                s.w_team,
     w_traction:            s.w_traction,
     w_capital:             s.w_capital,
@@ -68,6 +94,7 @@ export async function rescoreStartup(
     w_market:              s.w_market,
     w_unit_econ:           s.w_unit_econ,
     w_momentum:            s.w_momentum,
+    w_defensibility:       s.w_defensibility,
     composite_score:       s.composite_score,
     fields_applicable:     s.fields_applicable,
     fields_collected:      s.fields_collected,

@@ -209,28 +209,28 @@ function scoreTraction(fm: Record<string, string>, merged: Partial<StartupProfil
   const prof    = merged.is_profitable
   const clients = merged.client_count    || 0
 
+  // Analyst inputs (Tier 6)
+  const top3Conc    = parseFloat(fm["top3_client_revenue_pct"] || "0")
+  const momGrowth   = parseFloat(fm["mom_growth_pct"]          || "0")
+  const annualChurn = parseFloat(fm["annual_churn_pct"]        || "0")
+
+  let s: number
+
   if (scorecard === "saas") {
-    let s = rev >= 50 ? 90 : rev >= 20 ? 80 : rev >= 5 ? 65 : rev >= 1 ? 50 : rev > 0 ? 35
-          : clients > 20 ? 25 : 0
+    s = rev >= 50 ? 90 : rev >= 20 ? 80 : rev >= 5 ? 65 : rev >= 1 ? 50 : rev > 0 ? 35
+      : clients > 20 ? 25 : 0
     if (clients > 20 && s < 80) s = Math.min(80, s + 10)
     s = Math.min(100, s + growthBonus(yoy))
     if (prof) s = Math.min(100, s + 5)
-    return s
-  }
-
-  if (scorecard === "d2c") {
+  } else if (scorecard === "d2c") {
     // Cap GMV at 3× revenue when GMV >> revenue (prevents low-take-rate inflating score)
     const effectiveGmv = (gmv > 0 && rev > 0 && gmv > 5 * rev) ? 3 * rev : gmv
     const primary = Math.max(effectiveGmv, rev)
-    let s = primary >= 500 ? 90 : primary >= 200 ? 80 : primary >= 100 ? 70 : primary >= 50 ? 60
-          : primary >= 20 ? 50 : primary >= 5 ? 38 : primary >= 1 ? 25 : primary > 0 ? 15 : 0
+    s = primary >= 500 ? 90 : primary >= 200 ? 80 : primary >= 100 ? 70 : primary >= 50 ? 60
+      : primary >= 20 ? 50 : primary >= 5 ? 38 : primary >= 1 ? 25 : primary > 0 ? 15 : 0
     s = Math.min(100, s + growthBonus(yoy))
     if (prof) s = Math.min(100, s + 10)
-    return s
-  }
-
-  if (scorecard === "fintech") {
-    let s: number
+  } else if (scorecard === "fintech") {
     if (aum > 0) {
       s = aum >= 5000 ? 90 : aum >= 2000 ? 82 : aum >= 1000 ? 74 : aum >= 500 ? 65
         : aum >= 100 ? 52 : aum >= 50 ? 42 : 30
@@ -238,36 +238,35 @@ function scoreTraction(fm: Record<string, string>, merged: Partial<StartupProfil
       s = rev >= 100 ? 88 : rev >= 50 ? 78 : rev >= 20 ? 68 : rev >= 5 ? 55 : rev >= 1 ? 42 : rev > 0 ? 28 : 0
     }
     if (prof) s = Math.min(100, s + 10)
-    return s
-  }
-
-  if (scorecard === "marketplace") {
+  } else if (scorecard === "marketplace") {
     // Same GMV haircut: cap at 3× revenue when GMV >> revenue
     const effectiveGmv = (gmv > 0 && rev > 0 && gmv > 5 * rev) ? 3 * rev : gmv
     const primary = Math.max(effectiveGmv, rev)
-    let s = primary >= 1000 ? 90 : primary >= 500 ? 80 : primary >= 200 ? 68 : primary >= 100 ? 57
-          : primary >= 20 ? 42 : primary >= 5 ? 28 : primary > 0 ? 18 : 0
+    s = primary >= 1000 ? 90 : primary >= 500 ? 80 : primary >= 200 ? 68 : primary >= 100 ? 57
+      : primary >= 20 ? 42 : primary >= 5 ? 28 : primary > 0 ? 18 : 0
     s = Math.min(100, s + growthBonus(yoy))
     if (prof) s = Math.min(100, s + 5)
-    return s
+  } else if (scorecard === "deeptech") {
+    s = rev >= 10 ? 85 : rev >= 5 ? 75 : rev >= 1 ? 65 : rev > 0 ? 50
+      : clients > 3 ? 40 : clients > 0 ? 30
+      : (fm["pilot_customer"] || fm["signed_contracts"]) ? 28 : 15
+  } else {
+    // base
+    s = rev >= 50 ? 85 : rev >= 25 ? 75 : rev >= 10 ? 65 : rev >= 5 ? 55 : rev >= 1 ? 42
+      : rev > 0 ? 28 : clients > 100 ? 20 : 0
+    s = Math.min(100, s + growthBonus(yoy))
+    if (prof) s = Math.min(100, s + 10)
   }
 
-  if (scorecard === "deeptech") {
-    if (rev >= 10)   return 85
-    if (rev >= 5)    return 75
-    if (rev >= 1)    return 65
-    if (rev > 0)     return 50
-    if (clients > 3) return 40
-    if (clients > 0) return 30
-    if (fm["pilot_customer"] || fm["signed_contracts"]) return 28
-    return 15
-  }
+  // Analyst inputs: private operating metrics adjust the traction score
+  if (top3Conc >= 50)  s = Math.max(0, s - 10)   // concentration risk
+  if      (momGrowth >= 15) s = Math.min(100, s + 10)
+  else if (momGrowth >= 8)  s = Math.min(100, s + 5)
+  else if (momGrowth < -5)  s = Math.max(0,   s - 5)
+  if      (annualChurn >= 30) s = Math.max(0, s - 15)
+  else if (annualChurn >= 20) s = Math.max(0, s - 8)
+  else if (annualChurn >= 10) s = Math.max(0, s - 4)
 
-  // base
-  let s = rev >= 50 ? 85 : rev >= 25 ? 75 : rev >= 10 ? 65 : rev >= 5 ? 55 : rev >= 1 ? 42
-        : rev > 0 ? 28 : clients > 100 ? 20 : 0
-  s = Math.min(100, s + growthBonus(yoy))
-  if (prof) s = Math.min(100, s + 10)
   return s
 }
 
@@ -432,15 +431,32 @@ function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfil
   const teamSize  = merged.team_size          || 0
   const prof      = merged.is_profitable
 
+  // Analyst inputs (Tier 6): private metrics with highest unit-econ signal
+  const nrr         = parseFloat(fm["nrr_pct"]             || "0")
+  const grossMargin = parseFloat(fm["gross_margin_pct"]     || "0")
+  const ltv         = parseFloat(fm["ltv_inr_l"]           || "0")
+  const cac         = parseFloat(fm["cac_inr_l"]           || "0")
+  const runway      = parseFloat(fm["runway_months"]        || "0")
+
   // DeepTech pre-revenue: grant efficiency is the proxy
   if (scorecard === "deeptech" && !rev) {
     const grantRatio = parseFloat(fm["grant_equity_ratio"] || "0")
-    if (grantRatio > 0.5) return 55
-    if (grantRatio > 0.2) return 40
-    return 20
+    let s = grantRatio > 0.5 ? 55 : grantRatio > 0.2 ? 40 : 20
+    if (runway > 0) {
+      if (runway >= 18) s = Math.min(100, s + 10)
+      else if (runway < 6) s = Math.max(0, s - 20)
+    }
+    return Math.min(100, Math.max(0, s))
   }
 
-  if (!rev) return 15
+  if (!rev) {
+    let s = 15
+    if (runway > 0) {
+      if (runway >= 18) s = Math.min(100, s + 10)
+      else if (runway < 6) s = Math.max(0, s - 20)
+    }
+    return Math.min(100, Math.max(0, s))
+  }
 
   let s = 20
 
@@ -475,7 +491,33 @@ function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfil
     else if (revPerHead > 5) s += 5
   }
 
-  return Math.min(100, s)
+  // Analyst inputs: high-signal private metrics
+  if (nrr > 0) {
+    // Net Revenue Retention: >130% = product sells itself; <90% = churn problem
+    if      (nrr >= 130) s += 25
+    else if (nrr >= 110) s += 15
+    else if (nrr >= 90)  s += 5
+    else                 s -= 10
+  }
+  if (grossMargin > 0) {
+    // Gross margin: SaaS-grade (>70%) vs poor (<50%)
+    if      (grossMargin >= 70) s += 10
+    else if (grossMargin < 50)  s -= 10
+  }
+  if (ltv > 0 && cac > 0) {
+    // LTV:CAC ratio: >3 = excellent, <1 = structurally broken unit economics
+    const ltvCac = ltv / cac
+    if      (ltvCac >= 3) s += 15
+    else if (ltvCac >= 1) s += 5
+    else                  s -= 10
+  }
+  if (runway > 0) {
+    // Runway: <6 months is a red flag regardless of other metrics
+    if      (runway >= 18) s += 10
+    else if (runway < 6)   s -= 20
+  }
+
+  return Math.min(100, Math.max(0, s))
 }
 
 function scoreMomentum(fm: Record<string, string>, merged: Partial<StartupProfile>): number {

@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState, useRef, use } from "react"
 import { useRouter } from "next/navigation"
-import { getStartup, getJob, rescoreStartup, type FullProfile, type YouTubeSignal, type LinkedInSignal } from "@/lib/api"
+import { getStartup, getJob, rescoreStartup, upsertAnalystInputs, type FullProfile, type YouTubeSignal, type LinkedInSignal, type AnalystInput } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
 
 function str(v: unknown): string {
@@ -40,6 +40,7 @@ const NAV_GROUPS = [
   { group: "Analysis", items: [
     { n: "12", id: "s03", label: "Scorecard" },
     { n: "13", id: "s11", label: "Strategic Insights" },
+    { n: "14", id: "s14", label: "Analyst Data" },
   ]},
 ]
 
@@ -66,7 +67,10 @@ export default function ProfilePage({
   const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [activeSection, setActiveSection] = useState("s01")
   const [activeProd, setActiveProd] = useState(0)
-  const [rescoring, setRescoring] = useState(false)
+  const [rescoring,     setRescoring]     = useState(false)
+  const [analystDraft,  setAnalystDraft]  = useState<Record<string, string>>({})
+  const [savingAnalyst, setSavingAnalyst] = useState(false)
+  const [analystSaved,  setAnalystSaved]  = useState(false)
   const ringRef = useRef<SVGCircleElement>(null)
 
   const fetchProfile = () =>
@@ -107,6 +111,16 @@ export default function ProfilePage({
     return () => obs.disconnect()
   }, [profile])
 
+  // Pre-populate analyst draft from saved inputs
+  useEffect(() => {
+    if (!profile?.analyst_inputs?.length) return
+    const draft: Record<string, string> = {}
+    for (const ai of profile.analyst_inputs) {
+      if (ai.value_num !== null && ai.value_num !== undefined) draft[ai.field_name] = String(ai.value_num)
+    }
+    setAnalystDraft(draft)
+  }, [profile?.analyst_inputs])
+
   // Score ring animation
   useEffect(() => {
     if (!ringRef.current || !profile) return
@@ -140,6 +154,24 @@ export default function ProfilePage({
       console.error("Rescore failed:", e)
     } finally {
       setRescoring(false)
+    }
+  }
+
+  async function handleSaveAnalyst() {
+    setSavingAnalyst(true)
+    try {
+      const inputs = Object.entries(analystDraft)
+        .filter(([, v]) => v !== "" && !isNaN(parseFloat(v)))
+        .map(([field_name, v]) => ({ field_name, value: parseFloat(v) }))
+      if (inputs.length === 0) return
+      await upsertAnalystInputs(id, inputs)
+      await fetchProfile()
+      setAnalystSaved(true)
+      setTimeout(() => setAnalystSaved(false), 3000)
+    } catch (e) {
+      console.error("Save failed:", e)
+    } finally {
+      setSavingAnalyst(false)
     }
   }
 
@@ -1011,7 +1043,7 @@ export default function ProfilePage({
         </section>
 
         {/* ── S11 STRATEGIC INSIGHTS ── */}
-        <section data-sec="s11" id="s11" style={{ ...SEC, borderBottom: "none" }}>
+        <section data-sec="s11" id="s11" style={SEC}>
           <SecHeader n="13" title="Strategic Insights" badge="VC Synthesis" />
           {!vcInsights?.thesis ? (
             <Empty>No strategic insights yet. Trigger an insights pass to generate VC-grade analysis.</Empty>
@@ -1082,10 +1114,92 @@ export default function ProfilePage({
           )}
         </section>
 
+        {/* ── S14 ANALYST DATA ── */}
+        <section data-sec="s14" id="s14" style={{ ...SEC, borderBottom: "none" }}>
+          <SecHeader n="14" title="Analyst Data" badge="Private" action={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {analystSaved && (
+                <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--green)", background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 4, padding: "3px 8px" }}>
+                  ✓ Saved & rescored
+                </span>
+              )}
+              <button onClick={handleSaveAnalyst} disabled={savingAnalyst} style={{
+                fontFamily: "var(--mono)", fontSize: 10, fontWeight: 500,
+                textTransform: "uppercase", letterSpacing: "0.06em",
+                padding: "4px 12px", borderRadius: 5, cursor: savingAnalyst ? "default" : "pointer",
+                border: "1px solid var(--navy)",
+                background: savingAnalyst ? "var(--bg-soft)" : "var(--navy)",
+                color: savingAnalyst ? "var(--text-xs)" : "#fff",
+                transition: "all 0.15s",
+              }}>
+                {savingAnalyst ? "Saving…" : "Save & Rescore"}
+              </button>
+            </div>
+          } />
+          <p style={{ fontSize: 13, color: "var(--text-s)", marginBottom: "1.5rem", lineHeight: 1.6 }}>
+            Private metrics not available on the public web. Values are analyst-verified and feed directly into scoring.
+            Fields with existing data are pre-filled.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+            {ANALYST_FIELDS.map(({ name, label, unit, hint }) => {
+              const saved = profile.analyst_inputs?.find(ai => ai.field_name === name)
+              return (
+                <div key={name} style={{ background: "#fff", border: `1px solid ${saved ? "var(--green-bd)" : "var(--border)"}`, borderRadius: 8, padding: "1rem 1.125rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-s)", fontWeight: 500 }}>
+                      {label}
+                    </label>
+                    {saved && (
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--green)", background: "var(--green-lt)", border: "1px solid var(--green-bd)", borderRadius: 3, padding: "1px 5px", whiteSpace: "nowrap" }}>
+                        ✓ Verified
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="number"
+                      value={analystDraft[name] ?? ""}
+                      onChange={e => setAnalystDraft(d => ({ ...d, [name]: e.target.value }))}
+                      placeholder="—"
+                      style={{
+                        flex: 1, border: "1px solid var(--border-md)", borderRadius: 5,
+                        padding: "6px 8px", fontSize: 14, fontFamily: "var(--mono)",
+                        outline: "none", color: "var(--text-h)", background: "#fff",
+                        minWidth: 0,
+                      }}
+                    />
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", whiteSpace: "nowrap" }}>{unit}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-xs)", marginTop: 4 }}>{hint}</div>
+                  {saved?.updated_at && (
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--text-xs)", marginTop: 4 }}>
+                      Updated {new Date(saved.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {saved.entered_by ? ` by ${saved.entered_by.split("@")[0]}` : ""}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
       </main>
     </div>
   )
 }
+
+// ── ANALYST FIELD DEFINITIONS ─────────────────────────────────────
+const ANALYST_FIELDS: { name: string; label: string; unit: string; hint: string }[] = [
+  { name: "nrr_pct",                 label: "Net Revenue Retention",       unit: "%",   hint: ">120% is excellent; <90% = churn problem" },
+  { name: "gross_margin_pct",        label: "Gross Margin",                unit: "%",   hint: ">70% = SaaS-grade; <50% = warning" },
+  { name: "cac_inr_l",               label: "Customer Acquisition Cost",   unit: "₹L",  hint: "Cost to acquire one customer (lakhs)" },
+  { name: "ltv_inr_l",               label: "Lifetime Value",              unit: "₹L",  hint: "Expected revenue per customer (lakhs)" },
+  { name: "monthly_burn_inr_cr",     label: "Monthly Cash Burn",           unit: "₹Cr", hint: "Current monthly net cash out (Cr)" },
+  { name: "runway_months",           label: "Cash Runway",                 unit: "mo",  hint: "<6 months = critical; >18 months = safe" },
+  { name: "top3_client_revenue_pct", label: "Top-3 Client Concentration",  unit: "%",   hint: ">50% = concentration risk" },
+  { name: "mom_growth_pct",          label: "MoM Revenue Growth",          unit: "%",   hint: "3-month average MoM growth rate" },
+  { name: "annual_churn_pct",        label: "Annual Revenue Churn",        unit: "%",   hint: "<10% = strong retention; >30% = critical" },
+]
 
 // ── UTILITY COMPONENTS ────────────────────────────────────────────
 

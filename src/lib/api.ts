@@ -53,6 +53,15 @@ export interface StartupRow {
   data_quality_pct?:   number
   score_status?:       string
   updated_at?:         string
+  last_collected_at?:  string
+  last_scored_at?:     string
+}
+
+export interface AnalystInput {
+  field_name:  string
+  value_num:   number | null
+  entered_by?: string
+  updated_at?: string
 }
 
 export interface Score {
@@ -128,12 +137,13 @@ export interface LinkedInSignal {
 }
 
 export interface FullProfile {
-  startup:      Record<string, unknown>
-  latest_score: Score | null
-  all_scores:   Score[]
-  youtube:      YouTubeSignal[]
-  linkedin:     LinkedInSignal[]
-  raw_summary:  Record<string, unknown>[]
+  startup:        Record<string, unknown>
+  latest_score:   Score | null
+  all_scores:     Score[]
+  youtube:        YouTubeSignal[]
+  linkedin:       LinkedInSignal[]
+  raw_summary:    Record<string, unknown>[]
+  analyst_inputs: AnalystInput[]
   meta: {
     youtube_count:    number
     linkedin_count:   number
@@ -187,6 +197,21 @@ export async function pollJob(
 export async function getStartup(id: string): Promise<FullProfile> {
   const res = await fetch(`${BASE}/get-startup/${id}`, { headers: headers() })
   if (!res.ok) throw new Error(`Profile fetch failed: ${await res.text()}`)
+  return res.json()
+}
+
+// ── Analyst inputs ───────────────────────────────────────────────
+
+export async function upsertAnalystInputs(
+  startupId: string,
+  inputs: { field_name: string; value: number }[]
+): Promise<{ composite_score?: number; fields_saved: number }> {
+  const res = await fetch(`${BASE}/upsert-analyst-input`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ startup_id: startupId, inputs }),
+  })
+  if (!res.ok) throw new Error(`Analyst input save failed: ${await res.text()}`)
   return res.json()
 }
 

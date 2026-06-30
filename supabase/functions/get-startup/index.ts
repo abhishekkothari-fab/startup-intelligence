@@ -21,21 +21,23 @@ serve(async (req) => {
   const supabase = getSupabaseClient();
 
   const [
-    { data: startup,   error: e1 },
-    { data: scores,    error: e2 },
-    { data: youtube,   error: e3 },
-    { data: linkedin,  error: e4 },
-    { data: rawFields, error: e5 },
+    { data: startup,        error: e1 },
+    { data: scores,         error: e2 },
+    { data: youtube,        error: e3 },
+    { data: linkedin,       error: e4 },
+    { data: rawFields,      error: e5 },
+    { data: analystInputs,  error: e6 },
   ] = await Promise.all([
     supabase.from("startups").select("*").eq("id", id).single(),
     supabase.from("scores").select("*").eq("startup_id", id).order("scored_at", { ascending: false }),
     supabase.from("youtube_signals").select("*").eq("startup_id", id).order("published_date", { ascending: false }),
     supabase.from("linkedin_signals").select("*").eq("startup_id", id).order("post_date", { ascending: false }),
     supabase.from("raw_fields").select("field_name,field_pack,applicability,raw_value,data_type,source_type,source_url,confidence,applicability_reason").eq("startup_id", id),
+    supabase.from("analyst_inputs").select("field_name,value_num,entered_by,updated_at").eq("startup_id", id),
   ]);
 
   if (e1) return json({ error: e1.message }, e1.code === "PGRST116" ? 404 : 500);
-  if (e2 || e3 || e4 || e5) return json({ error: (e2 || e3 || e4 || e5)?.message }, 500);
+  if (e2 || e3 || e4 || e5 || e6) return json({ error: (e2 || e3 || e4 || e5 || e6)?.message }, 500);
 
   // Log which authenticated user fetched this profile (fire-and-forget).
   const authHeader = req.headers.get("Authorization");
@@ -51,11 +53,12 @@ serve(async (req) => {
 
   return json({
     startup,
-    latest_score: scores?.[0] ?? null,
-    all_scores:   scores ?? [],
-    youtube:      youtube ?? [],
-    linkedin:     linkedin ?? [],
-    raw_summary:  rawFields ?? [],
+    latest_score:   scores?.[0] ?? null,
+    all_scores:     scores ?? [],
+    youtube:        youtube ?? [],
+    linkedin:       linkedin ?? [],
+    raw_summary:    rawFields ?? [],
+    analyst_inputs: analystInputs ?? [],
     meta: {
       youtube_count:    youtube?.length  ?? 0,
       linkedin_count:   linkedin?.length ?? 0,

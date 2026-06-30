@@ -3,8 +3,10 @@
 // Query params:
 //   ?page=1&limit=20            — pagination (default page=1, limit=20)
 //   ?stage=series_a             — filter by stage
-//   ?industry=BFSI              — filter by industry
-//   ?sort=composite_score|revenue_inr_cr|team_size  — sort field (default: composite_score)
+//   ?industry=BFSI              — filter by industry (ilike match)
+//   ?scorecard=saas             — filter by primary_scorecard
+//   ?profiled_by=email@x.com   — filter to startups triggered by this user
+//   ?sort=composite_score       — sort field
 //   ?search=razorpay            — partial match on brand_name (case-insensitive)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -19,29 +21,46 @@ const CORS = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const url      = new URL(req.url);
-  const page     = Math.max(1, parseInt(url.searchParams.get("page")  ?? "1"));
-  const limit    = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20")));
-  const stage    = url.searchParams.get("stage");
-  const industry = url.searchParams.get("industry");
-  const search   = url.searchParams.get("search");
-  const sortBy   = url.searchParams.get("sort") ?? "composite_score";
+  const url        = new URL(req.url);
+  const page       = Math.max(1, parseInt(url.searchParams.get("page")  ?? "1"));
+  const limit      = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20")));
+  const stage      = url.searchParams.get("stage");
+  const industry   = url.searchParams.get("industry");
+  const scorecard  = url.searchParams.get("scorecard");
+  const profiledBy = url.searchParams.get("profiled_by");
+  const search     = url.searchParams.get("search");
+  const sortBy     = url.searchParams.get("sort") ?? "composite_score";
 
   const ALLOWED_SORTS = ["composite_score", "revenue_inr_cr", "team_size", "total_raised_usd_m", "data_quality_pct", "brand_name", "last_collected_at", "last_scored_at"];
-  const sort = ALLOWED_SORTS.includes(sortBy) ? sortBy : "composite_score";
-  const dirParam = url.searchParams.get("dir") ?? "desc";
+  const sort      = ALLOWED_SORTS.includes(sortBy) ? sortBy : "composite_score";
+  const dirParam  = url.searchParams.get("dir") ?? "desc";
   const ascending = dirParam === "asc";
 
   const supabase = getSupabaseClient();
 
-  // Use the leaderboard view — pre-joined with latest score
+  // If filtering by profiled_by, first get the startup IDs from profiling_jobs
+  let allowedIds: string[] | null = null;
+  if (profiledBy) {
+    const { data: jobs } = await supabase
+      .from("profiling_jobs")
+      .select("startup_id")
+      .eq("requested_by", profiledBy)
+      .not("startup_id", "is", null);
+    allowedIds = (jobs ?? []).map((j: { startup_id: string }) => j.startup_id).filter(Boolean);
+    if (allowedIds.length === 0) {
+      return json({ data: [], total: 0, page, limit, pages: 0, filters: { stage, industry, scorecard }, sort_by: sort });
+    }
+  }
+
   let query = supabase
     .from("leaderboard")
     .select("*", { count: "exact" });
 
-  if (stage)    query = query.eq("stage", stage);
-  if (industry) query = query.eq("industry", industry);
-  if (search)   query = query.ilike("brand_name", `%${search}%`);
+  if (stage)       query = query.eq("stage", stage);
+  if (industry)    query = query.ilike("industry", `%${industry}%`);
+  if (scorecard)   query = query.eq("primary_scorecard", scorecard);
+  if (search)      query = query.ilike("brand_name", `%${search}%`);
+  if (allowedIds)  query = query.in("id", allowedIds);
 
   query = query
     .order(sort, { ascending, nullsFirst: false })
@@ -52,13 +71,13 @@ serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
 
   return json({
-    data:        data ?? [],
-    total:       count ?? 0,
+    data:    data ?? [],
+    total:   count ?? 0,
     page,
     limit,
-    pages:       Math.ceil((count ?? 0) / limit),
-    filters:     { stage, industry },
-    sort_by:     sort
+    pages:   Math.ceil((count ?? 0) / limit),
+    filters: { stage, industry, scorecard },
+    sort_by: sort
   });
 });
 

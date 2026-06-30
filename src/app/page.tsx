@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
 
+// ── Scorecard display ────────────────────────────────────────────
 const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
   saas:        { label: "B2B SaaS",    color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
   d2c:         { label: "D2C",         color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
@@ -13,12 +14,77 @@ const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string
   base:        { label: "General",     color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB" },
 }
 
-const S: Record<string, string> = {
-  pre_seed: "Pre-seed", seed: "Seed", series_a: "Series A",
-  series_b_plus: "Series B+", growth: "Growth"
+// ── Stage display ────────────────────────────────────────────────
+const STAGE_LABELS: Record<string, string> = {
+  pre_seed:      "Pre-seed",
+  seed:          "Seed",
+  series_a:      "Series A",
+  series_b_plus: "Series B+",
+  growth:        "Growth",
+  pre_ipo:       "Pre-IPO",
+  ipo:           "Listed",
 }
 
-const COL_DEFS: { label: string; w: number; sortKey: string | null }[] = [
+const STAGE_BADGE: Record<string, { bg: string; color: string; border: string }> = {
+  pre_seed:      { bg: "#F3F4F6", color: "#4B5563", border: "#D1D5DB" },
+  seed:          { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
+  series_a:      { bg: "#DBEAFE", color: "#1E40AF", border: "#93C5FD" },
+  series_b_plus: { bg: "#1E3A5F", color: "#BFDBFE", border: "#1E3A5F" },
+  growth:        { bg: "#0F172A", color: "#FFFFFF", border: "#0F172A" },
+  pre_ipo:       { bg: "#F5F3FF", color: "#6D28D9", border: "#C4B5FD" },
+  ipo:           { bg: "#FFF7ED", color: "#C2410C", border: "#FED7AA" },
+}
+
+// ── Filter options ───────────────────────────────────────────────
+const STAGE_OPTIONS = [
+  { value: "",              label: "All stages" },
+  { value: "pre_seed",      label: "Pre-seed" },
+  { value: "seed",          label: "Seed" },
+  { value: "series_a",      label: "Series A" },
+  { value: "series_b_plus", label: "Series B+" },
+  { value: "growth",        label: "Growth" },
+  { value: "pre_ipo",       label: "Pre-IPO" },
+  { value: "ipo",           label: "Listed / IPO" },
+]
+
+const INDUSTRY_OPTIONS = [
+  { value: "",              label: "All industries" },
+  { value: "BFSI",          label: "BFSI" },
+  { value: "FinTech",       label: "FinTech" },
+  { value: "Payments",      label: "Payments" },
+  { value: "Lending",       label: "Lending" },
+  { value: "NBFC",          label: "NBFC" },
+  { value: "HealthTech",    label: "HealthTech" },
+  { value: "MedTech",       label: "MedTech" },
+  { value: "SaaS",          label: "SaaS" },
+  { value: "AI_Infra",      label: "AI / Infra" },
+  { value: "Cybersecurity", label: "Cybersecurity" },
+  { value: "D2C",           label: "D2C" },
+  { value: "Consumer",      label: "Consumer" },
+  { value: "EdTech",        label: "EdTech" },
+  { value: "HRTech",        label: "HRTech" },
+  { value: "Logistics",     label: "Logistics" },
+  { value: "EV",            label: "EV / Mobility" },
+  { value: "CleanTech",     label: "CleanTech" },
+  { value: "DeepTech",      label: "Deep Tech" },
+  { value: "Biotech",       label: "Biotech" },
+  { value: "AgriTech",      label: "AgriTech" },
+  { value: "Marketplace",   label: "Marketplace" },
+  { value: "Media",         label: "Media" },
+  { value: "Gaming",        label: "Gaming" },
+]
+
+const SCORECARD_OPTIONS = [
+  { value: "",            label: "All types" },
+  { value: "saas",        label: "B2B SaaS" },
+  { value: "fintech",     label: "FinTech" },
+  { value: "d2c",         label: "D2C" },
+  { value: "marketplace", label: "Marketplace" },
+  { value: "deeptech",    label: "Deep Tech" },
+  { value: "base",        label: "General" },
+]
+
+const COL_DEFS: { label: string; w: number; sortKey: string | null; tooltip?: string }[] = [
   { label: "Rank",      w: 52,  sortKey: null },
   { label: "Company",   w: 210, sortKey: "brand_name" },
   { label: "Stage",     w: 100, sortKey: null },
@@ -26,7 +92,10 @@ const COL_DEFS: { label: string; w: number; sortKey: string | null }[] = [
   { label: "Revenue",   w: 105, sortKey: "revenue_inr_cr" },
   { label: "Raised",    w: 105, sortKey: "total_raised_usd_m" },
   { label: "Score",     w: 68,  sortKey: "composite_score" },
-  { label: "DQ",        w: 58,  sortKey: "data_quality_pct" },
+  {
+    label: "DQ", w: 58, sortKey: "data_quality_pct",
+    tooltip: "Data Quality: % of applicable fields with a non-unknown value. Low DQ = sparse public data, not a judgment of the company."
+  },
   { label: "Scorecard", w: 160, sortKey: null },
   { label: "Refreshed", w: 95,  sortKey: "last_collected_at" },
   { label: "Scored",    w: 95,  sortKey: "last_scored_at" },
@@ -42,22 +111,41 @@ export default function HomePage() {
   const [sort,    setSort]    = useState("composite_score")
   const [dir,     setDir]     = useState<"asc"|"desc">("desc")
 
+  // Auth
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  // View mode
+  const [viewMode, setViewMode] = useState<"all"|"mine">("all")
+
+  // Column filters
+  const [filterStage,     setFilterStage]     = useState("")
+  const [filterIndustry,  setFilterIndustry]  = useState("")
+  const [filterScorecard, setFilterScorecard] = useState("")
+
   // Search
-  const [search,         setSearch]         = useState("")
-  const [debouncedSearch,setDebouncedSearch] = useState("")
-  const [searchFocused,  setSearchFocused]   = useState(false)
+  const [search,          setSearch]          = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [searchFocused,   setSearchFocused]   = useState(false)
+  const [acResults,       setAcResults]       = useState<StartupRow[]>([])
+  const [showAc,          setShowAc]          = useState(false)
 
   // New profile modal state
-  const [company,   setCompany]   = useState("")
-  const [showModal, setShowModal] = useState(false)
-  const [jobStatus, setJobStatus] = useState<string | null>(null)
-  const [jobPct,    setJobPct]    = useState(0)
-  const [jobPasses, setJobPasses] = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
-  const [triggering,setTriggering]= useState(false)
-  const [error,     setError]     = useState("")
-  const [colWidths, setColWidths] = useState(() => COL_DEFS.map(c => c.w))
+  const [company,    setCompany]    = useState("")
+  const [showModal,  setShowModal]  = useState(false)
+  const [jobStatus,  setJobStatus]  = useState<string | null>(null)
+  const [jobPct,     setJobPct]     = useState(0)
+  const [jobPasses,  setJobPasses]  = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
+  const [triggering, setTriggering] = useState(false)
+  const [error,      setError]      = useState("")
+  const [colWidths,  setColWidths]  = useState(() => COL_DEFS.map(c => c.w))
   const resizingCol = useRef<{ col: number; startX: number; startW: number } | null>(null)
 
+  // Fetch user email once
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
+  }, [])
+
+  // Column resize
   function startResize(i: number, e: React.MouseEvent) {
     e.preventDefault()
     resizingCol.current = { col: i, startX: e.clientX, startW: colWidths[i] }
@@ -75,34 +163,53 @@ export default function HomePage() {
     document.addEventListener("mouseup", onUp)
   }
 
+  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(t)
   }, [search])
 
-  function handleColSort(key: string) {
-    if (sort === key) {
-      setDir(d => d === "desc" ? "asc" : "desc")
-    } else {
-      setSort(key)
-      setDir("desc")
-    }
-    setPage(1)
-  }
+  // Autocomplete: top-5 results for the search dropdown
+  useEffect(() => {
+    if (!debouncedSearch) { setAcResults([]); return }
+    getStartups({ search: debouncedSearch, limit: 5, sort: "composite_score", dir: "desc" })
+      .then(r => setAcResults(r.data))
+      .catch(() => {})
+  }, [debouncedSearch])
 
+  // Main table fetch
   useEffect(() => {
     setLoading(true)
-    getStartups({ page, sort, dir, search: debouncedSearch||undefined })
+    getStartups({
+      page, sort, dir,
+      search:      debouncedSearch   || undefined,
+      stage:       filterStage       || undefined,
+      industry:    filterIndustry    || undefined,
+      scorecard:   filterScorecard   || undefined,
+      profiled_by: viewMode === "mine" ? (userEmail ?? undefined) : undefined,
+    })
       .then(r => { setRows(r.data); setTotal(r.total) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [page, sort, dir, debouncedSearch])
+  }, [page, sort, dir, debouncedSearch, filterStage, filterIndustry, filterScorecard, viewMode, userEmail])
+
+  function handleColSort(key: string) {
+    if (sort === key) setDir(d => d === "desc" ? "asc" : "desc")
+    else { setSort(key); setDir("desc") }
+    setPage(1)
+  }
+
+  function resetFilters() {
+    setFilterStage(""); setFilterIndustry(""); setFilterScorecard(""); setPage(1)
+  }
+
+  const hasFilters = !!(filterStage || filterIndustry || filterScorecard)
 
   async function handleTrigger() {
     if (!company.trim()) return
     setTriggering(true); setError(""); setJobStatus("queued"); setJobPct(0); setJobPasses(null)
     try {
-      const job = await triggerProfile(company.trim())
+      const job = await triggerProfile(company.trim(), "IN", userEmail ?? undefined)
       if (job.cached && job.startup_id) {
         router.push(`/profile/${job.startup_id}`)
         return
@@ -117,6 +224,13 @@ export default function HomePage() {
     } finally {
       setTriggering(false)
     }
+  }
+
+  function openModalWith(prefill: string) {
+    setCompany(prefill)
+    setJobStatus(null)
+    setShowModal(true)
+    setShowAc(false)
   }
 
   return (
@@ -148,11 +262,13 @@ export default function HomePage() {
       </header>
 
       {/* ── HERO SEARCH ── */}
-      <section style={{ background: "#fff", borderBottom: "1px solid var(--border)", padding: "3rem 1.5rem 2.25rem" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
-          <p style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "1.5rem" }}>
+      <section style={{ background: "#fff", borderBottom: "1px solid var(--border)", padding: "2.5rem 1.5rem 2rem" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <p style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--text-xs)", marginBottom: "1.25rem", textAlign: "center" }}>
             Indian startup intelligence
           </p>
+
+          {/* Search bar with autocomplete */}
           <div style={{ position: "relative" }}>
             <svg style={{ position: "absolute", left: 22, top: "50%", transform: "translateY(-50%)", color: "var(--text-xs)", pointerEvents: "none" }}
               width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -162,24 +278,89 @@ export default function HomePage() {
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              placeholder="Search any Indian startup…"
+              onFocus={() => setShowAc(true)}
+              onBlur={() => setTimeout(() => setShowAc(false), 180)}
+              placeholder="Find a startup — or press Enter to profile a new one"
               style={{
                 width: "100%",
-                border: `2px solid ${searchFocused ? "var(--navy)" : "var(--border-md)"}`,
-                borderRadius: 999,
+                border: `2px solid ${searchFocused || showAc ? "var(--navy)" : "var(--border-md)"}`,
+                borderRadius: search && showAc && (acResults.length > 0) ? "12px 12px 0 0" : 999,
                 padding: "15px 24px 15px 52px",
                 fontSize: 16,
                 outline: "none",
-                boxShadow: searchFocused ? "0 4px 20px rgba(30,58,95,0.12)" : "0 2px 8px rgba(0,0,0,0.06)",
+                boxShadow: (searchFocused || showAc) ? "0 4px 20px rgba(30,58,95,0.12)" : "0 2px 8px rgba(0,0,0,0.06)",
                 transition: "border-color 0.15s, box-shadow 0.15s",
                 background: "#fff",
                 color: "var(--text-h)",
               }}
+              onFocusCapture={() => setSearchFocused(true)}
+              onBlurCapture={() => setSearchFocused(false)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && search.trim()) {
+                  if (acResults.length > 0) router.push(`/profile/${acResults[0].id}`)
+                  else openModalWith(search.trim())
+                }
+              }}
             />
+
+            {/* Autocomplete dropdown */}
+            {showAc && search && (
+              <div style={{
+                position: "absolute", top: "100%", left: 0, right: 0,
+                background: "#fff", border: "2px solid var(--navy)", borderTop: "none",
+                borderRadius: "0 0 12px 12px",
+                boxShadow: "0 8px 24px rgba(30,58,95,0.12)",
+                overflow: "hidden", zIndex: 50,
+              }}>
+                {acResults.map((r, i) => (
+                  <div key={r.id}
+                    onMouseDown={() => router.push(`/profile/${r.id}`)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 20px", cursor: "pointer",
+                      borderTop: i > 0 ? "1px solid var(--border)" : undefined,
+                      background: "#fff",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-soft)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-h)", flex: 1 }}>{r.brand_name}</span>
+                    {r.stage && (
+                      <span style={{ ...stageBadgeStyle(r.stage), fontSize: 9, padding: "2px 6px" }}>
+                        {STAGE_LABELS[r.stage] ?? r.stage}
+                      </span>
+                    )}
+                    {r.composite_score != null && (
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 12, fontWeight: 700, color: scoreColor(r.composite_score), minWidth: 28, textAlign: "right" }}>
+                        {r.composite_score}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {/* "Profile [X]" CTA always at bottom */}
+                <div
+                  onMouseDown={() => openModalWith(search.trim())}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "10px 20px", cursor: "pointer",
+                    borderTop: "1px solid var(--border)",
+                    background: "var(--bg-soft)",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#E8EDF3")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "var(--bg-soft)")}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
+                  </svg>
+                  <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 500 }}>
+                    Profile &quot;{search.trim()}&quot; →
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-          <p style={{ marginTop: "1rem", fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
+
+          <p style={{ marginTop: "0.85rem", fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)", textAlign: "center" }}>
             {total > 0
               ? debouncedSearch
                 ? `${total} result${total !== 1 ? "s" : ""} for "${debouncedSearch}"`
@@ -189,20 +370,90 @@ export default function HomePage() {
         </div>
       </section>
 
-      <main style={{ flex: 1, maxWidth: 1520, margin: "0 auto", padding: "1.5rem", width: "100%" }}>
+      <main style={{ flex: 1, maxWidth: 1520, margin: "0 auto", padding: "1.25rem 1.5rem", width: "100%" }}>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-          <span style={{ fontSize: 13, color: "var(--text-s)" }}>{total} startups</span>
+        {/* ── View toggle + filters row ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
+
+          {/* View toggle */}
+          <div style={{
+            display: "inline-flex", border: "1px solid var(--border-md)", borderRadius: 7,
+            overflow: "hidden", flexShrink: 0,
+          }}>
+            {(["all", "mine"] as const).map(mode => (
+              <button key={mode}
+                onClick={() => { setViewMode(mode); setPage(1) }}
+                style={{
+                  padding: "5px 14px", fontSize: 12, fontWeight: 500,
+                  border: "none", cursor: "pointer",
+                  background: viewMode === mode ? "var(--navy)" : "#fff",
+                  color:      viewMode === mode ? "#fff"        : "var(--text-s)",
+                  transition: "background 0.1s, color 0.1s",
+                }}>
+                {mode === "all" ? "All profiles" : "My profiles"}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Filter pills */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <FilterSelect
+              value={filterStage}
+              onChange={v => { setFilterStage(v); setPage(1) }}
+              options={STAGE_OPTIONS}
+              label="Stage"
+            />
+            <FilterSelect
+              value={filterIndustry}
+              onChange={v => { setFilterIndustry(v); setPage(1) }}
+              options={INDUSTRY_OPTIONS}
+              label="Industry"
+            />
+            <FilterSelect
+              value={filterScorecard}
+              onChange={v => { setFilterScorecard(v); setPage(1) }}
+              options={SCORECARD_OPTIONS}
+              label="Scorecard"
+            />
+            {hasFilters && (
+              <button onClick={resetFilters} style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--text-xs)", padding: "4px 6px",
+                fontFamily: "var(--mono)", textDecoration: "underline",
+              }}>
+                clear
+              </button>
+            )}
+          </div>
+
+          <span style={{ fontSize: 12, color: "var(--text-xs)", fontFamily: "var(--mono)" }}>
+            {total} {viewMode === "mine" ? "yours" : "startups"}
+          </span>
         </div>
 
-        {/* Table */}
+        {/* ── Table ── */}
         {loading ? (
           <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-xs)", fontSize: 14 }}>
             Loading leaderboard...
           </div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem" }}>
-            <p style={{ fontSize: 15, color: "var(--text-s)", marginBottom: "1rem" }}>No startups profiled yet.</p>
+            {viewMode === "mine" ? (
+              <>
+                <p style={{ fontSize: 15, color: "var(--text-s)", marginBottom: "1rem" }}>
+                  No profiles found for your account yet.
+                </p>
+                <p style={{ fontSize: 13, color: "var(--text-xs)", marginBottom: "1rem" }}>
+                  Profiles you trigger will appear here. Older profiles show in "All".
+                </p>
+              </>
+            ) : (
+              <p style={{ fontSize: 15, color: "var(--text-s)", marginBottom: "1rem" }}>
+                {hasFilters ? "No startups match the current filters." : "No startups profiled yet."}
+              </p>
+            )}
             <button onClick={() => setShowModal(true)} style={btnPrimary}>Profile your first startup →</button>
           </div>
         ) : (
@@ -213,12 +464,16 @@ export default function HomePage() {
               </colgroup>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
-                  {COL_DEFS.map(({ label, sortKey }, i) => {
+                  {COL_DEFS.map(({ label, sortKey, tooltip }, i) => {
                     const isActive = sortKey && sort === sortKey
                     return (
-                      <th key={label || "__view"} style={{ ...thStyle, position: "relative", userSelect: "none", cursor: sortKey ? "pointer" : "default", whiteSpace: "nowrap" }}
+                      <th key={label || "__view"} title={tooltip}
+                        style={{ ...thStyle, position: "relative", userSelect: "none", cursor: sortKey ? "pointer" : "default", whiteSpace: "nowrap" }}
                         onClick={() => sortKey && handleColSort(sortKey)}>
-                        <span style={{ color: isActive ? "var(--navy)" : undefined }}>{label}</span>
+                        <span style={{ color: isActive ? "var(--navy)" : undefined }}>
+                          {label}
+                          {tooltip && <span style={{ marginLeft: 3, opacity: 0.5, fontSize: 9 }}>ⓘ</span>}
+                        </span>
                         {sortKey && (
                           <span style={{ marginLeft: 4, opacity: isActive ? 1 : 0.25, fontSize: 9 }}>
                             {isActive ? (dir === "desc" ? "↓" : "↑") : "↕"}
@@ -251,16 +506,23 @@ export default function HomePage() {
                       {r.brand_name}
                       {r.is_profitable && <span style={profitBadge}>✓ Profitable</span>}
                     </td>
-                    <td style={tdStyle}><span style={stageBadge(r.stage)}>{S[r.stage||""]||r.stage||"—"}</span></td>
-                    <td style={{ ...tdStyle, color: "var(--text-s)" }}>{r.industry||"—"}</td>
+                    <td style={tdStyle}>
+                      {r.stage
+                        ? <span style={{ ...stageBadgeStyle(r.stage), fontSize: 10, padding: "2px 7px" }}>
+                            {STAGE_LABELS[r.stage] ?? r.stage}
+                          </span>
+                        : <span style={{ color: "var(--text-xs)" }}>—</span>}
+                    </td>
+                    <td style={{ ...tdStyle, color: "var(--text-s)" }}>{r.industry || "—"}</td>
                     <td style={tdStyle}>{r.revenue_inr_cr ? `₹${r.revenue_inr_cr} Cr` : "—"}</td>
                     <td style={tdStyle}>{r.total_raised_usd_m ? `$${r.total_raised_usd_m}M` : "—"}</td>
-                    <td style={{ ...tdStyle, fontWeight: 700, fontSize: 15,
-                      color: scoreColor(r.composite_score) }}>
+                    <td style={{ ...tdStyle, fontWeight: 700, fontSize: 15, color: scoreColor(r.composite_score) }}>
                       {r.composite_score ?? "—"}
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-xs)" }}>
-                      {r.data_quality_pct ? `${r.data_quality_pct}%` : "—"}
+                    <td style={{ ...tdStyle, fontFamily: "var(--mono)", fontSize: 11 }}>
+                      {r.data_quality_pct != null
+                        ? <span style={{ color: dqColor(r.data_quality_pct) }}>{r.data_quality_pct}%</span>
+                        : <span style={{ color: "var(--text-xs)" }}>—</span>}
                     </td>
                     <td style={tdStyle}>
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -395,6 +657,48 @@ export default function HomePage() {
   )
 }
 
+// ── FilterSelect component ───────────────────────────────────────
+function FilterSelect({ value, onChange, options, label }: {
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  label: string
+}) {
+  const active = !!value
+  return (
+    <div style={{ position: "relative" }}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          appearance: "none",
+          WebkitAppearance: "none",
+          padding: "4px 22px 4px 10px",
+          fontSize: 12,
+          fontFamily: "var(--mono)",
+          fontWeight: active ? 600 : 400,
+          border: `1px solid ${active ? "var(--navy)" : "var(--border-md)"}`,
+          borderRadius: 5,
+          background: active ? "var(--navy)" : "#fff",
+          color: active ? "#fff" : "var(--text-s)",
+          cursor: "pointer",
+          outline: "none",
+        }}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {/* Chevron */}
+      <svg style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+        width="10" height="10" viewBox="0 0 24 24" fill="none"
+        stroke={active ? "#fff" : "var(--text-xs)"} strokeWidth="2.5">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
+    </div>
+  )
+}
+
 // ── Styles ──────────────────────────────────────────────────────
 const thStyle: React.CSSProperties = {
   textAlign: "left", padding: "8px 12px",
@@ -428,18 +732,31 @@ const profitBadge: React.CSSProperties = {
   border: "1px solid var(--green-bd)", borderRadius: 4, padding: "1px 5px",
   fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.06em"
 }
-const stageBadge = (stage?: string): React.CSSProperties => ({
-  fontSize: 10, fontFamily: "var(--mono)", textTransform: "uppercase",
-  letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4,
-  background: stage === "growth" ? "var(--navy)" : "var(--blue-lt)",
-  color: stage === "growth" ? "#fff" : "var(--navy)",
-  border: `1px solid ${stage === "growth" ? "var(--navy)" : "var(--blue-md)"}`
-})
+
+function stageBadgeStyle(stage?: string): React.CSSProperties {
+  const s = stage ?? ""
+  const cfg = STAGE_BADGE[s] ?? { bg: "var(--blue-lt)", color: "var(--navy)", border: "var(--blue-md)" }
+  return {
+    display: "inline-block",
+    fontFamily: "var(--mono)", fontWeight: 600,
+    textTransform: "uppercase", letterSpacing: "0.06em",
+    borderRadius: 4,
+    background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+    whiteSpace: "nowrap" as const,
+  }
+}
+
 function scoreColor(score?: number) {
   if (!score) return "var(--text-xs)"
   if (score >= 80) return "var(--green)"
   if (score >= 60) return "var(--amber)"
   return "var(--red)"
+}
+
+function dqColor(pct: number) {
+  if (pct >= 70) return "var(--green)"
+  if (pct >= 45) return "var(--amber)"
+  return "var(--text-xs)"
 }
 
 function relTime(iso?: string): string {

@@ -56,6 +56,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.15, 0.30, 0.10, 0.08, 0.15, 0.10, 0.05, 0.07],
     series_b_plus: [0.10, 0.30, 0.10, 0.08, 0.15, 0.15, 0.05, 0.07],
     growth:        [0.08, 0.32, 0.10, 0.06, 0.15, 0.18, 0.05, 0.06],
+    pre_ipo:       [0.06, 0.34, 0.06, 0.05, 0.14, 0.22, 0.07, 0.06],
+    ipo:           [0.05, 0.35, 0.05, 0.05, 0.14, 0.24, 0.07, 0.05],
   },
   d2c: {
     pre_seed:      [0.30, 0.08, 0.10, 0.17, 0.15, 0.02, 0.10, 0.08],
@@ -63,6 +65,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.15, 0.30, 0.10, 0.09, 0.15, 0.10, 0.05, 0.06],
     series_b_plus: [0.10, 0.35, 0.10, 0.05, 0.15, 0.15, 0.04, 0.06],
     growth:        [0.08, 0.38, 0.10, 0.05, 0.10, 0.18, 0.06, 0.05],
+    pre_ipo:       [0.06, 0.40, 0.06, 0.04, 0.10, 0.22, 0.07, 0.05],
+    ipo:           [0.05, 0.42, 0.04, 0.04, 0.10, 0.24, 0.07, 0.04],
   },
   marketplace: {
     pre_seed:      [0.35, 0.05, 0.10, 0.15, 0.15, 0.05, 0.05, 0.10],
@@ -70,6 +74,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.15, 0.30, 0.10, 0.07, 0.15, 0.10, 0.05, 0.08],
     series_b_plus: [0.10, 0.35, 0.10, 0.05, 0.13, 0.15, 0.05, 0.07],
     growth:        [0.08, 0.38, 0.10, 0.05, 0.12, 0.15, 0.05, 0.07],
+    pre_ipo:       [0.06, 0.40, 0.06, 0.04, 0.12, 0.20, 0.06, 0.06],
+    ipo:           [0.05, 0.42, 0.05, 0.04, 0.12, 0.22, 0.06, 0.04],
   },
   fintech: {
     pre_seed:      [0.35, 0.05, 0.15, 0.10, 0.15, 0.05, 0.05, 0.10],
@@ -77,6 +83,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.20, 0.25, 0.15, 0.05, 0.13, 0.10, 0.05, 0.07],
     series_b_plus: [0.10, 0.30, 0.15, 0.05, 0.13, 0.15, 0.05, 0.07],
     growth:        [0.10, 0.30, 0.15, 0.05, 0.13, 0.15, 0.05, 0.07],
+    pre_ipo:       [0.07, 0.32, 0.10, 0.04, 0.12, 0.22, 0.07, 0.06],
+    ipo:           [0.05, 0.33, 0.08, 0.04, 0.12, 0.25, 0.07, 0.06],
   },
   deeptech: {
     // Higher defensibility weight — patents and regulatory licenses are core moats here
@@ -85,6 +93,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.25, 0.20, 0.15, 0.12, 0.12, 0.05, 0.03, 0.08],
     series_b_plus: [0.15, 0.30, 0.15, 0.07, 0.12, 0.10, 0.03, 0.08],
     growth:        [0.10, 0.35, 0.15, 0.07, 0.12, 0.10, 0.03, 0.08],
+    pre_ipo:       [0.08, 0.36, 0.10, 0.06, 0.12, 0.14, 0.05, 0.09],
+    ipo:           [0.07, 0.38, 0.08, 0.06, 0.12, 0.16, 0.05, 0.08],
   },
   base: {
     pre_seed:      [0.35, 0.05, 0.10, 0.12, 0.15, 0.05, 0.10, 0.08],
@@ -92,6 +102,8 @@ const WEIGHTS: Record<string, Record<string, W8>> = {
     series_a:      [0.15, 0.25, 0.15, 0.08, 0.10, 0.10, 0.10, 0.07],
     series_b_plus: [0.10, 0.30, 0.15, 0.08, 0.10, 0.15, 0.05, 0.07],
     growth:        [0.08, 0.35, 0.15, 0.06, 0.10, 0.15, 0.05, 0.06],
+    pre_ipo:       [0.06, 0.37, 0.10, 0.05, 0.10, 0.20, 0.07, 0.05],
+    ipo:           [0.05, 0.38, 0.08, 0.05, 0.10, 0.22, 0.07, 0.05],
   },
 }
 
@@ -567,12 +579,16 @@ function scoreMomentum(fm: Record<string, string>, merged: Partial<StartupProfil
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function computeScores(merged: Partial<StartupProfile>): Partial<StartupProfile> {
-  // Correct stage misclassification based on capital raised
+  // Correct stage misclassification based on capital raised.
+  // Never override explicit ipo/pre_ipo — these are confirmed via the overview pass.
   let stage = merged.auto_stage || "seed"
   const raisedUsd = merged.total_raised_usd_m || 0
-  if      (raisedUsd >= 100 && ["pre_seed","seed","series_a"].includes(stage)) stage = "series_b_plus"
-  else if (raisedUsd >= 20  && ["pre_seed","seed"].includes(stage))             stage = "series_a"
-  else if (raisedUsd >= 5   && stage === "pre_seed")                            stage = "seed"
+  const isExplicitLateStage = stage === "ipo" || stage === "pre_ipo"
+  if (!isExplicitLateStage) {
+    if      (raisedUsd >= 100 && ["pre_seed","seed","series_a"].includes(stage)) stage = "series_b_plus"
+    else if (raisedUsd >= 20  && ["pre_seed","seed"].includes(stage))             stage = "series_a"
+    else if (raisedUsd >= 5   && stage === "pre_seed")                            stage = "seed"
+  }
 
   // Field lookup from raw_fields
   const fm: Record<string, string> = {}

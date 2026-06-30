@@ -153,11 +153,11 @@ export interface FullProfile {
 
 // ── Trigger profile ──────────────────────────────────────────────
 
-export async function triggerProfile(company: string, country = "IN"): Promise<Job> {
+export async function triggerProfile(company: string, country = "IN", requestedBy?: string): Promise<Job> {
   const res = await fetch(`${BASE}/profile-startup`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ company, country }),
+    body: JSON.stringify({ company, country, ...(requestedBy ? { requested_by: requestedBy } : {}) }),
   })
   if (!res.ok) throw new Error(`Trigger failed: ${await res.text()}`)
   return res.json()
@@ -230,18 +230,26 @@ export async function rescoreStartup(id: string): Promise<{ composite_score: num
 // ── Leaderboard ──────────────────────────────────────────────────
 
 export async function getStartups(params?: {
-  page?:     number
-  limit?:    number
-  sort?:     string
-  dir?:      string
-  search?:   string
+  page?:        number
+  limit?:       number
+  sort?:        string
+  dir?:         string
+  search?:      string
+  stage?:       string
+  industry?:    string
+  scorecard?:   string
+  profiled_by?: string
 }): Promise<{ data: StartupRow[]; total: number; pages: number }> {
   const qs = new URLSearchParams()
-  if (params?.page)     qs.set("page",     String(params.page))
-  if (params?.limit)    qs.set("limit",    String(params.limit))
-  if (params?.sort)     qs.set("sort",     params.sort)
-  if (params?.dir)      qs.set("dir",      params.dir)
-  if (params?.search)   qs.set("search",   params.search)
+  if (params?.page)        qs.set("page",        String(params.page))
+  if (params?.limit)       qs.set("limit",       String(params.limit))
+  if (params?.sort)        qs.set("sort",        params.sort)
+  if (params?.dir)         qs.set("dir",         params.dir)
+  if (params?.search)      qs.set("search",      params.search)
+  if (params?.stage)       qs.set("stage",       params.stage)
+  if (params?.industry)    qs.set("industry",    params.industry)
+  if (params?.scorecard)   qs.set("scorecard",   params.scorecard)
+  if (params?.profiled_by) qs.set("profiled_by", params.profiled_by)
   const res = await fetch(`${BASE}/get-startups?${qs}`, { headers: headers() })
   if (!res.ok) throw new Error(`Leaderboard fetch failed: ${await res.text()}`)
   return res.json()

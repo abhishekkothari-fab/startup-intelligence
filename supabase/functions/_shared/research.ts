@@ -246,9 +246,9 @@ export async function researchStartup(req: ResearchRequest): Promise<StartupProf
     differentiation_claim:          merged.differentiation_claim,
     scores: merged.scores || {
       stage,
-      dim_founder: 25, dim_traction: 25, dim_capital: 20,
+      dim_team: 25, dim_traction: 25, dim_capital: 20,
       dim_product: 30, dim_market: 50, dim_momentum: 15,
-      w_founder: wf, w_traction: wt, w_capital: wc,
+      w_team: wf, w_traction: wt, w_capital: wc,
       w_product: wp, w_market: wm, w_momentum: wmo,
       composite_score: 28, fields_applicable: 10, fields_collected: 4,
       fields_unknown: 6, fields_not_applicable: 0, data_quality_pct: 40,

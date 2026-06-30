@@ -248,8 +248,8 @@ export default function HomePage() {
             width: 30, height: 30, background: "#fff", borderRadius: 6,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontFamily: "var(--mono)", fontSize: 11, color: "var(--navy)", fontWeight: 700
-          }}>SI</div>
-          <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Startup Intelligence</span>
+          }}>L</div>
+          <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Launchpad</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button

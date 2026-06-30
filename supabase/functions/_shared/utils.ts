@@ -70,7 +70,7 @@ export function buildInsightsContext(merged: Partial<StartupProfile>): string {
   // Scores summary
   if (merged.scores) {
     const s = merged.scores
-    lines.push(`Scores: founder=${s.dim_founder} traction=${s.dim_traction} capital=${s.dim_capital} product=${s.dim_product} market=${s.dim_market} momentum=${s.dim_momentum} composite=${s.composite_score}`)
+    lines.push(`Scores: team=${s.dim_team} traction=${s.dim_traction} capital=${s.dim_capital} product=${s.dim_product} market=${s.dim_market} momentum=${s.dim_momentum} composite=${s.composite_score}`)
   }
 
   // Raw fields — applicable only, grouped by pack

@@ -9,6 +9,9 @@ function str(v: unknown): string {
   return String(v)
 }
 function num(v: unknown): number { return Number(v) || 0 }
+function cleanCr(v: string): string {
+  return v.replace(/^₹\s*/u, "").replace(/\s*Cr\.?\s*$/i, "").trim()
+}
 function rawVal(raw: Record<string, unknown>[], name: string): string {
   const f = raw.find(r => r.field_name === name)
   if (!f || f.applicability === "not_applicable") return ""
@@ -33,7 +36,7 @@ const NAV_GROUPS = [
     { n: "08", id: "s12", label: "Recognitions" },
   ]},
   { group: "Social Media", items: [
-    { n: "09", id: "s09", label: "LinkedIn" },
+    { n: "09", id: "s09", label: "In the News" },
     { n: "10", id: "s10", label: "Glassdoor" },
     { n: "11", id: "s08", label: "YouTube" },
   ]},
@@ -207,11 +210,12 @@ export default function ProfilePage({
     .filter(p => p.name)
   const roundHistory = [1,2,3,4,5,6]
     .map(n => {
-      const lead = rv(`round_${n}_lead`)
+      const lead = rv(`round_${n}_lead`).trim()
       const allInvestors = rv(`round_${n}_investors`)
-      const others = allInvestors && lead
-        ? allInvestors.split(/,\s*/).filter(s => s.toLowerCase().trim() !== lead.toLowerCase().trim()).join(", ")
-        : allInvestors
+      const seen = new Set(lead ? [lead.toLowerCase()] : [])
+      const others = allInvestors
+        ? allInvestors.split(/,\s*/).map(s => s.trim()).filter(s => { if (!s || seen.has(s.toLowerCase())) return false; seen.add(s.toLowerCase()); return true }).join(", ")
+        : ""
       return {
         type:          rv(`round_${n}_type`),
         date:          rv(`round_${n}_date`),
@@ -275,6 +279,7 @@ export default function ProfilePage({
   const brandInitials = str(s.brand_name).split(/\s+/).map(w => w[0] || "").slice(0,2).join("").toUpperCase()
   const hasProfile = !!s.last_collected_at
   const revFY = str(s.revenue_fy) || rv("revenue_fy1_year")
+  const hasContext = roundHistory.some(r => r.context)
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
@@ -290,15 +295,16 @@ export default function ProfilePage({
             {brandInitials}
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", letterSpacing: "-0.01em" }}>{str(s.brand_name)} Intelligence Dossier</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", letterSpacing: "-0.01em" }}>{str(s.brand_name)} Dossier</div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>
               {[str(s.industry || s.auto_industry), str(s.industry_sub || s.auto_industry_sub), str(s.hq_city)].filter(Boolean).join(" · ")}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${scoreGlowColor}55`, borderRadius: 100, padding: "6px 16px", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 500, color: "#fff", boxShadow: `0 0 10px ${scoreGlowColor}33` }}>
-            Score: <span style={{ fontWeight: 700, color: scoreGlowColor }}>{score}</span> / 100
+          <div style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${scoreGlowColor}55`, borderRadius: 100, padding: "6px 16px", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 500, color: "#fff", boxShadow: `0 0 10px ${scoreGlowColor}33`, display: "flex", alignItems: "center", gap: 6 }}>
+            Investability Score: <span style={{ fontWeight: 700, color: scoreGlowColor }}>{score}</span> / 100
+            <span title="Composite score across 7 dimensions including traction, team, product, market, and financials. Indicative only — not investment advice." style={{ cursor: "help", fontSize: 12, opacity: 0.6, lineHeight: 1 }}>ⓘ</span>
           </div>
           <button
             onClick={async () => { await createClient().auth.signOut(); router.push("/login") }}
@@ -368,15 +374,15 @@ export default function ProfilePage({
           <SecHeader n="01" title="Key Metrics" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: "1.5rem" }}>
             <StatCard label={revFY ? `Revenue ${revFY}` : "Revenue"}
-              value={s.revenue_inr_cr ? `₹${str(s.revenue_inr_cr)} Cr` : rv("revenue_fy1_inr_cr") ? `₹${rv("revenue_fy1_inr_cr")} Cr` : "—"}
-              sub={[s.revenue_yoy_pct ? `+${str(s.revenue_yoy_pct)}% YoY` : "", nextTarget ? `FY target ₹${nextTarget} Cr` : ""].filter(Boolean).join(" · ")}
+              value={s.revenue_inr_cr ? `₹${cleanCr(str(s.revenue_inr_cr))} Cr` : rv("revenue_fy1_inr_cr") ? `₹${cleanCr(rv("revenue_fy1_inr_cr"))} Cr` : "—"}
+              sub={[s.revenue_yoy_pct ? `+${str(s.revenue_yoy_pct)}% YoY` : "", nextTarget ? `FY target ₹${cleanCr(nextTarget)} Cr` : ""].filter(Boolean).join(" · ")}
               color="var(--navy)" />
             <StatCard label={Boolean(s.is_profitable) ? "Net Profit" : s.net_profit_inr_cr ? "Net Loss" : "Net Profit / Loss"}
-              value={s.net_profit_inr_cr ? `₹${str(s.net_profit_inr_cr)} Cr` : "—"}
+              value={s.net_profit_inr_cr ? `₹${cleanCr(str(s.net_profit_inr_cr))} Cr` : "—"}
               sub={Boolean(s.is_profitable) ? "Profitable ✓" : ""}
               color={Boolean(s.is_profitable) ? "var(--green)" : s.net_profit_inr_cr ? "var(--red)" : undefined} />
             <StatCard label="Latest Round"
-              value={s.last_round_size_inr_cr ? `₹${str(s.last_round_size_inr_cr)} Cr` : s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M total` : "—"}
+              value={s.last_round_size_inr_cr ? `₹${cleanCr(str(s.last_round_size_inr_cr))} Cr` : roundHistory[0]?.amount_usd_m ? `$${roundHistory[0].amount_usd_m}M` : "—"}
               sub={[str(s.last_round_type), str(s.last_round_date).slice(0,7)].filter(Boolean).join(" · ")} />
             <StatCard label="Total Raised"
               value={s.total_raised_usd_m ? `$${str(s.total_raised_usd_m)}M` : "—"}
@@ -415,7 +421,7 @@ export default function ProfilePage({
                   const isCur = i === arr.length - 1
                   return (
                     <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
-                      <div style={{ position: "absolute", top: -22, left: "50%", transform: "translateX(-50%) rotate(-35deg)", transformOrigin: "center bottom", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 500 : 400, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>₹{r.inr}</div>
+                      <div style={{ position: "absolute", top: -16, left: "50%", transform: "translateX(-50%)", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 600 : 400, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>{cleanCr(r.inr)}</div>
                       <div style={{ width: "100%", height: pct, background: isCur ? "var(--navy)" : "var(--blue-md)", borderRadius: "3px 3px 0 0" }}/>
                       <div style={{ marginTop: 5, fontFamily: "var(--mono)", fontSize: 9, color: isCur ? "var(--navy)" : "var(--text-s)", fontWeight: isCur ? 500 : 400 }}>{r.year}</div>
                     </div>
@@ -639,7 +645,7 @@ export default function ProfilePage({
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "var(--navy)" }}>
-                      {["Date","Round","Amount","Lead / Investors","Context"].map(h => (
+                      {["Date","Round","Amount","Lead / Investors", ...(hasContext ? ["Context"] : [])].map(h => (
                         <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.8)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "none" }}>{h}</th>
                       ))}
                     </tr>
@@ -653,7 +659,7 @@ export default function ProfilePage({
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: isLatest ? "var(--amber)" : "var(--text-h)", fontWeight: isLatest ? 600 : 500 }}>{r.type || "—"}</td>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: isLatest ? "var(--amber)" : "var(--text-h)", fontWeight: isLatest ? 600 : 400 }}>{r.amount_usd_m ? `$${r.amount_usd_m}M` : "—"}</td>
                           <td style={{ padding: "0.75rem 1rem", fontSize: 13, color: "var(--text-m)", lineHeight: 1.45 }}>{[r.lead, r.investors_str].filter(Boolean).join(" · ") || "—"}</td>
-                          <td style={{ padding: "0.75rem 1rem", fontSize: 12, color: "var(--text-s)", lineHeight: 1.55 }}>{r.context || "—"}</td>
+                          {hasContext && <td style={{ padding: "0.75rem 1rem", fontSize: 12, color: "var(--text-s)", lineHeight: 1.55 }}>{r.context || "—"}</td>}
                         </tr>
                       )
                     })}
@@ -774,10 +780,10 @@ export default function ProfilePage({
           )}
         </section>
 
-        {/* ── S09 LINKEDIN ── */}
+        {/* ── S09 IN THE NEWS ── */}
         <section data-sec="s09" id="s09" style={SEC}>
-          <SecHeader n="09" title="LinkedIn" />
-          {profile.linkedin.length === 0 ? <Empty>{hasProfile ? "No LinkedIn signals were found — the founders or company may have limited LinkedIn presence." : "Run a full profile to collect LinkedIn signals."}</Empty> : (
+          <SecHeader n="09" title="In the News" />
+          {profile.linkedin.length === 0 ? <Empty>{hasProfile ? "No news or LinkedIn signals were found." : "Run a full profile to collect signals."}</Empty> : (
             <>
               {[
                 { label: "Founder Posts", signals: profile.linkedin.filter(sig => sig.pass === 8) },
@@ -790,7 +796,11 @@ export default function ProfilePage({
                       <div key={i} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem 1.25rem" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.625rem", gap: 12 }}>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{sig.author_name || "Unknown"}</div>
+                            {(() => {
+                              const name = sig.author_name && !/^unknown$/i.test(sig.author_name.trim()) ? sig.author_name : null
+                              const domain = !name && sig.post_url ? (() => { try { return new URL(sig.post_url).hostname.replace(/^www\./, "") } catch { return null } })() : null
+                              return <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{name || domain || ""}</div>
+                            })()}
                             {sig.author_role && <div style={{ fontSize: 11, color: "var(--text-s)", marginTop: 1 }}>{sig.author_role}</div>}
                             {sig.author_org  && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-s)", marginTop: 1 }}>{sig.author_org}</div>}
                           </div>

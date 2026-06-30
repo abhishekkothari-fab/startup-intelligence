@@ -673,17 +673,17 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   else if (fy1 > 0 && fy2 > 0 && fy1 !== fy2) rRevenueCagr = Math.round((fy1 / fy2 - 1) * 1000) / 10
   else if (merged.revenue_yoy_pct)              rRevenueCagr = merged.revenue_yoy_pct
 
-  const rBurnMultiple      = (rev && raisedInr > 0) ? Math.round(raisedInr / rev * 10) / 10 : undefined
-  const rRevPerHead        = (rev && merged.team_size && merged.team_size > 0)
+  const rBurnMultiple      = (rev > 0 && raisedInr > 0) ? Math.round(raisedInr / rev * 10) / 10 : undefined
+  const rRevPerHead        = (rev >= 0 && merged.team_size && merged.team_size > 0)
     ? Math.round(rev * 100 / merged.team_size * 10) / 10 : undefined
-  const rACV               = (rev && merged.client_count && merged.client_count > 0)
+  const rACV               = (rev >= 0 && merged.client_count && merged.client_count > 0)
     ? Math.round(rev * 100 / merged.client_count * 10) / 10 : undefined
   const roundCount         = parseInt(fm["round_count"] || "0")
   const rRoundCadence      = (roundCount > 0 && monthsOp > 0)
     ? Math.round(roundCount / (monthsOp / 12) * 10) / 10 : undefined
   const roundSizeInr       = merged.last_round_size_inr_cr || 0
   // implied valuation = round size / assumed 18% dilution; multiple = valuation / ARR
-  const rValuationArrMult  = (roundSizeInr > 0 && rev && rev > 0)
+  const rValuationArrMult  = (roundSizeInr > 0 && rev > 0)
     ? Math.round(roundSizeInr / (0.18 * rev) * 10) / 10
     : undefined
   const tier               = fm["investor_1_tier"] || ""
@@ -703,7 +703,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const edu = (fm["founder_1_education"] || "").toLowerCase()
   if (isTier1Edu(edu)) founderDepth = Math.min(10, founderDepth + 1)
 
-  const rCapitalProductivity = (rev && raisedInr > 0)
+  const rCapitalProductivity = (rev > 0 && raisedInr > 0)
     ? Math.round(rev / raisedInr * 1000) / 10 : undefined
 
   return {

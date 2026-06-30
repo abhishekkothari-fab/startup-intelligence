@@ -206,14 +206,21 @@ export default function ProfilePage({
     .map(n => ({ name: rv(`product_${n}_name`), type: rv(`product_${n}_type`), description: rv(`product_${n}_description`), url: rv(`product_${n}_url`) }))
     .filter(p => p.name)
   const roundHistory = [1,2,3,4,5,6]
-    .map(n => ({
-      type:          rv(`round_${n}_type`),
-      date:          rv(`round_${n}_date`),
-      amount_usd_m:  rv(`round_${n}_amount_usd_m`),
-      lead:          rv(`round_${n}_lead`),
-      investors_str: rv(`round_${n}_investors`),
-      context:       rv(`round_${n}_context`),
-    }))
+    .map(n => {
+      const lead = rv(`round_${n}_lead`)
+      const allInvestors = rv(`round_${n}_investors`)
+      const others = allInvestors && lead
+        ? allInvestors.split(/,\s*/).filter(s => s.toLowerCase().trim() !== lead.toLowerCase().trim()).join(", ")
+        : allInvestors
+      return {
+        type:          rv(`round_${n}_type`),
+        date:          rv(`round_${n}_date`),
+        amount_usd_m:  rv(`round_${n}_amount_usd_m`),
+        lead,
+        investors_str: others,
+        context:       rv(`round_${n}_context`),
+      }
+    })
     .filter(r => r.type)
   const cxos = [1,2,3,4,5,6]
     .map(n => ({ name: rv(`cxo_${n}_name`), role: rv(`cxo_${n}_role`), background: rv(`cxo_${n}_background`) }))

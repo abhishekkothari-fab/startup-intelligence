@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState, useRef, use } from "react"
 import { useRouter } from "next/navigation"
-import { getStartup, getJob, rescoreStartup, upsertAnalystInputs, type FullProfile, type YouTubeSignal, type LinkedInSignal, type AnalystInput } from "@/lib/api"
+import { getStartup, getJob, triggerFill, rescoreStartup, upsertAnalystInputs, type FullProfile, type YouTubeSignal, type LinkedInSignal, type AnalystInput } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
 
 function str(v: unknown): string {
@@ -76,6 +76,11 @@ export default function ProfilePage({
   const [analystDraft,  setAnalystDraft]  = useState<Record<string, string>>({})
   const [savingAnalyst, setSavingAnalyst] = useState(false)
   const [analystSaved,  setAnalystSaved]  = useState(false)
+  const [showFillPanel, setShowFillPanel] = useState(false)
+  const [fillChecked,   setFillChecked]   = useState<Set<string>>(new Set())
+  const [filling,       setFilling]       = useState(false)
+  const [fillJobId,     setFillJobId]     = useState<string | null>(null)
+  const [fillPasses,    setFillPasses]    = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const ringRef = useRef<SVGCircleElement>(null)
 
   const fetchProfile = () =>
@@ -139,6 +144,24 @@ export default function ProfilePage({
     }, 300)
     return () => clearTimeout(t)
   }, [profile])
+
+  // Fill-missing polling
+  useEffect(() => {
+    if (!fillJobId || !filling) return
+    const interval = setInterval(async () => {
+      try {
+        const j = await getJob(fillJobId)
+        if (j.passes) setFillPasses(j.passes)
+        if (j.status === "completed" || j.status === "failed") {
+          setFilling(false)
+          setFillJobId(null)
+          fetchProfile()
+          clearInterval(interval)
+        }
+      } catch {}
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [fillJobId, filling])
 
   if (loading) return <Loading />
   if (error) return <ErrorPage error={error} onBack={() => router.push("/")} />
@@ -282,6 +305,57 @@ export default function ProfilePage({
   const revFY = str(s.revenue_fy) || rv("revenue_fy1_year")
   const hasContext = roundHistory.some(r => r.context)
 
+  // ── Fill missing passes ──────────────────────────────────────────
+  const passesCompleted = new Set(profile.meta.passes_completed)
+  const FILLABLE = [
+    { pass: "founders",    label: "Founders & Team"   },
+    { pass: "glassdoor",   label: "Glassdoor"         },
+    { pass: "funding",     label: "Funding"           },
+    { pass: "competitive", label: "Competitive"       },
+    { pass: "products",    label: "Product"           },
+    { pass: "youtube",     label: "YouTube"           },
+    { pass: "signals",     label: "Signals & Awards"  },
+    { pass: "linkedin",    label: "In the News"       },
+  ]
+  const missingPasses = FILLABLE.map(({ pass, label }) => {
+    const empty = (() => {
+      switch (pass) {
+        case "founders":    return !rv("founder_1_name")
+        case "glassdoor":   return !s.glassdoor_rating && !s.glassdoor_themes
+        case "funding":     return !rv("round_1_type")
+        case "competitive": return !str(s.competitive_density) && !str(s.market_leader_name)
+        case "products":    return !rv("product_1_name")
+        case "youtube":     return profile.youtube.length === 0
+        case "signals":     return !rv("award_1") && !rv("partnership_1_partner")
+        case "linkedin":    return profile.linkedin.length === 0
+        default:            return false
+      }
+    })()
+    if (!empty) return null
+    return { pass, label, tried: passesCompleted.has(pass) }
+  }).filter(Boolean) as { pass: string; label: string; tried: boolean }[]
+
+  const fillTimeEstimate = (n: number) =>
+    n <= 0 ? "" : n <= 2 ? "~1–2 min" : n <= 4 ? "~3–4 min" : n <= 6 ? "~5–6 min" : "~8 min"
+
+  async function handleFill() {
+    const selected = [...fillChecked]
+    if (!selected.length) return
+    const passesToRun = [...selected, "insights"]
+    const clearSignals = ["youtube", "linkedin"].filter(p => selected.includes(p))
+    setFilling(true)
+    setShowFillPanel(false)
+    try {
+      const user = (await createClient().auth.getUser()).data.user
+      const job = await triggerFill(str(s.brand_name), passesToRun, clearSignals, user?.email ?? undefined)
+      setFillJobId(job.job_id)
+      setFillPasses(null)
+    } catch (e) {
+      console.error("Fill trigger failed:", e)
+      setFilling(false)
+    }
+  }
+
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
 
@@ -307,6 +381,23 @@ export default function ProfilePage({
             Investability Score: <span style={{ fontWeight: 700, color: scoreGlowColor }}>{score}</span> / 100
             <span title="Composite score across 7 dimensions including traction, team, product, market, and financials. Indicative only — not investment advice." style={{ cursor: "help", fontSize: 12, opacity: 0.6, lineHeight: 1 }}>ⓘ</span>
           </div>
+          {hasProfile && missingPasses.length > 0 && !researching && !filling && (
+            <button
+              onClick={() => {
+                setFillChecked(new Set(missingPasses.filter(p => !p.tried).map(p => p.pass)))
+                setShowFillPanel(v => !v)
+              }}
+              style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.4)", color: "#fbbf24", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", gap: 5 }}
+            >
+              ↑ Complete profile <span style={{ fontFamily: "var(--mono)", fontSize: 10, opacity: 0.8 }}>({missingPasses.length})</span>
+            </button>
+          )}
+          {filling && (
+            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "#fbbf24", display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fbbf24", display: "inline-block", animation: "pulse 1.5s infinite" }}/>
+              Filling…
+            </span>
+          )}
           <button
             onClick={async () => { await createClient().auth.signOut(); router.push("/login") }}
             style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.6)", borderRadius: 6, padding: "5px 11px", fontSize: 12, cursor: "pointer" }}
@@ -354,6 +445,83 @@ export default function ProfilePage({
               {["overview","founders","glassdoor","funding","competitive","products","regulatory","signals","youtube","linkedin"].map(p => {
                 const done = jobPasses?.completed.includes(p)
                 const fail = jobPasses?.failed.includes(p)
+                return (
+                  <span key={p} style={{
+                    fontSize: 10, fontFamily: "var(--mono)", padding: "3px 7px", borderRadius: 4,
+                    textTransform: "capitalize",
+                    background: done ? "rgba(34,197,94,0.15)" : fail ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)",
+                    color: done ? "#4ade80" : fail ? "#f87171" : "rgba(255,255,255,0.35)",
+                    border: `1px solid ${done ? "rgba(34,197,94,0.3)" : fail ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.12)"}`,
+                  }}>
+                    {done ? "✓ " : fail ? "✗ " : "○ "}{p}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── FILL PANEL ── */}
+        {showFillPanel && missingPasses.length > 0 && (
+          <div style={{ position: "sticky", top: 56, zIndex: 300, background: "#fff", borderBottom: "1px solid var(--border)", padding: "1.25rem 2.5rem", boxShadow: "0 2px 12px rgba(17,19,24,0.08)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--navy)" }}>
+                Complete Profile — {missingPasses.length} section{missingPasses.length !== 1 ? "s" : ""} missing
+              </div>
+              <button onClick={() => setShowFillPanel(false)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text-s)", lineHeight: 1 }}>×</button>
+            </div>
+            {[
+              { label: "Never attempted", items: missingPasses.filter(p => !p.tried) },
+              { label: "Tried, no data found", items: missingPasses.filter(p => p.tried) },
+            ].map(({ label, items }) => items.length > 0 && (
+              <div key={label} style={{ marginBottom: "0.875rem" }}>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-xs)", fontWeight: 500, marginBottom: "0.5rem" }}>{label}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {items.map(({ pass, label: sectionLabel }) => {
+                    const checked = fillChecked.has(pass)
+                    return (
+                      <label key={pass} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-m)", cursor: "pointer", padding: "4px 10px", borderRadius: 6, border: `1px solid ${checked ? "var(--navy)" : "var(--border)"}`, background: checked ? "var(--blue-lt)" : "#fff", transition: "all 0.12s" }}>
+                        <input type="checkbox" checked={checked} onChange={() => {
+                          setFillChecked(prev => {
+                            const next = new Set(prev)
+                            next.has(pass) ? next.delete(pass) : next.add(pass)
+                            return next
+                          })
+                        }} style={{ accentColor: "var(--navy)", width: 13, height: 13 }} />
+                        {sectionLabel}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.875rem", paddingTop: "0.875rem", borderTop: "1px solid var(--border)" }}>
+              <span style={{ fontSize: 12, color: "var(--text-xs)" }}>
+                Strategic Insights will be refreshed automatically
+                {fillChecked.size > 0 && <span style={{ color: "var(--text-s)", marginLeft: 8 }}>· {fillTimeEstimate(fillChecked.size)}</span>}
+              </span>
+              <button
+                onClick={handleFill}
+                disabled={fillChecked.size === 0}
+                style={{ background: fillChecked.size > 0 ? "var(--navy)" : "var(--bg-soft)", color: fillChecked.size > 0 ? "#fff" : "var(--text-xs)", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: fillChecked.size > 0 ? "pointer" : "not-allowed", transition: "all 0.15s" }}
+              >
+                Fill {fillChecked.size > 0 ? `${fillChecked.size} section${fillChecked.size !== 1 ? "s" : ""}` : "selected sections"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── FILL PROGRESS STRIP ── */}
+        {filling && (
+          <div style={{ position: "sticky", top: 56, zIndex: 300, background: "var(--navy)", borderBottom: "1px solid rgba(255,255,255,0.1)", padding: "0.6rem 2.5rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "#fbbf24", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fbbf24", display: "inline-block", animation: "pulse 1.5s infinite" }}/>
+              Filling missing sections…
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {[...fillChecked, "insights"].map(p => {
+                const done = fillPasses?.completed.includes(p)
+                const fail = fillPasses?.failed.includes(p)
                 return (
                   <span key={p} style={{
                     fontSize: 10, fontFamily: "var(--mono)", padding: "3px 7px", borderRadius: 4,

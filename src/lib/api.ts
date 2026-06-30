@@ -148,6 +148,7 @@ export interface FullProfile {
     youtube_count:    number
     linkedin_count:   number
     fields_collected: number
+    passes_completed: string[]
   }
 }
 
@@ -212,6 +213,28 @@ export async function upsertAnalystInputs(
     body: JSON.stringify({ startup_id: startupId, inputs }),
   })
   if (!res.ok) throw new Error(`Analyst input save failed: ${await res.text()}`)
+  return res.json()
+}
+
+// ── Fill missing passes ──────────────────────────────────────────
+
+export async function triggerFill(
+  companyName: string,
+  passes: string[],
+  clearSignals: string[],
+  requestedBy?: string
+): Promise<Job> {
+  const res = await fetch(`${BASE}/profile-startup`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({
+      company: companyName,
+      only_passes: passes,
+      ...(clearSignals.length ? { clear_signals: clearSignals } : {}),
+      ...(requestedBy ? { requested_by: requestedBy } : {}),
+    }),
+  })
+  if (!res.ok) throw new Error(`Fill trigger failed: ${await res.text()}`)
   return res.json()
 }
 

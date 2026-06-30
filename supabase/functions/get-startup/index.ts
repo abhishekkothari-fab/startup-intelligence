@@ -27,6 +27,7 @@ serve(async (req) => {
     { data: linkedin,       error: e4 },
     { data: rawFields,      error: e5 },
     { data: analystInputs,  error: e6 },
+    { data: latestJob },
   ] = await Promise.all([
     supabase.from("startups").select("*").eq("id", id).single(),
     supabase.from("scores").select("*").eq("startup_id", id).order("scored_at", { ascending: false }),
@@ -34,6 +35,7 @@ serve(async (req) => {
     supabase.from("linkedin_signals").select("*").eq("startup_id", id).order("post_date", { ascending: false }),
     supabase.from("raw_fields").select("field_name,field_pack,applicability,raw_value,data_type,source_type,source_url,confidence,applicability_reason").eq("startup_id", id),
     supabase.from("analyst_inputs").select("field_name,value_num,entered_by,updated_at").eq("startup_id", id),
+    supabase.from("profiling_jobs").select("passes_status").eq("startup_id", id).in("status", ["completed", "failed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (e1) return json({ error: e1.message }, e1.code === "PGRST116" ? 404 : 500);
@@ -63,6 +65,11 @@ serve(async (req) => {
       youtube_count:    youtube?.length  ?? 0,
       linkedin_count:   linkedin?.length ?? 0,
       fields_collected: rawFields?.filter(f => f.applicability === "applicable" && f.raw_value).length ?? 0,
+      passes_completed: latestJob?.passes_status
+        ? Object.entries(latestJob.passes_status as Record<string, { status: string }>)
+            .filter(([, v]) => v.status === "completed")
+            .map(([k]) => k)
+        : [],
     }
   });
 });

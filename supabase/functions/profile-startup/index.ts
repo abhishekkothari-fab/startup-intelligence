@@ -54,6 +54,7 @@ serve(async (req) => {
     country?: string;
     requested_by?: string;
     only_passes?: string[];
+    clear_signals?: string[];
     job_id?: string;
     _wave?: number;
     _retry?: boolean;
@@ -62,7 +63,7 @@ serve(async (req) => {
   try { body = await req.json(); }
   catch { return json({ error: "Invalid JSON body" }, 400); }
 
-  const { company, country = "IN", requested_by, only_passes, job_id: existingJobId, _wave, _retry, force_haiku } = body;
+  const { company, country = "IN", requested_by, only_passes, clear_signals, job_id: existingJobId, _wave, _retry, force_haiku } = body;
   if (!company || typeof company !== "string" || company.trim().length < 2) {
     return json({ error: "company field is required (min 2 chars)" }, 400);
   }
@@ -84,7 +85,7 @@ serve(async (req) => {
   // external callers never supply job_id, so this path is safe to treat as internal.
   if (existingJobId && only_passes?.length) {
     console.log(`[targeted-rerun] company=${company} job=${existingJobId} passes=[${only_passes.join(",")}] retry=${!!_retry}`)
-    EdgeRuntime.waitUntil(runResearch(existingJobId, company.trim(), country, only_passes, undefined, !!_retry, !!force_haiku));
+    EdgeRuntime.waitUntil(runResearch(existingJobId, company.trim(), country, only_passes, undefined, !!_retry, !!force_haiku, clear_signals));
     return json({ job_id: existingJobId, status: "running" }, 202);
   }
 
@@ -123,7 +124,7 @@ serve(async (req) => {
 
   if (only_passes?.length) {
     // User-facing targeted re-run: self-call so each pass gets a fresh 150s window.
-    EdgeRuntime.waitUntil(fireOnlyPasses(jobId, company.trim(), country, only_passes, false, !!force_haiku));
+    EdgeRuntime.waitUntil(fireOnlyPasses(jobId, company.trim(), country, only_passes, false, !!force_haiku, clear_signals));
   } else {
     // Fresh full run: kick off wave 1 via self-call (each wave gets a fresh 150s window).
     EdgeRuntime.waitUntil(fireWave(1, jobId, company.trim(), country, !!force_haiku));
@@ -151,14 +152,18 @@ async function fireWave(wave: number, jobId: string, company: string, country: s
   }
 }
 
-async function fireOnlyPasses(jobId: string, company: string, country: string, passes: string[], isRetry = false, forceHaiku = false): Promise<void> {
+async function fireOnlyPasses(jobId: string, company: string, country: string, passes: string[], isRetry = false, forceHaiku = false, clearSignals?: string[]): Promise<void> {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/profile-startup`
   const key = Deno.env.get("SUPABASE_ANON_KEY") ?? ""
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ company, country, job_id: jobId, only_passes: passes, _retry: isRetry, ...(forceHaiku ? { force_haiku: true } : {}) }),
+      body: JSON.stringify({
+        company, country, job_id: jobId, only_passes: passes, _retry: isRetry,
+        ...(forceHaiku ? { force_haiku: true } : {}),
+        ...(clearSignals?.length ? { clear_signals: clearSignals } : {}),
+      }),
     })
     console.log(`[${jobId}] Fired only_passes=[${passes.join(",")}] retry=${isRetry} → HTTP ${res.status}`)
   } catch (e) {
@@ -173,7 +178,8 @@ async function runResearch(
   onlyPasses?: string[],
   waveNum?: number,
   isRetry = false,
-  forceHaiku = false
+  forceHaiku = false,
+  clearSignals?: string[]
 ): Promise<void> {
   const supabase = getSupabaseClient();
   let startupId: string | undefined;
@@ -277,6 +283,20 @@ async function runResearch(
       });
       console.error(`[${jobId}] Aborted — only_passes requires an existing startup, none found for "${company}"`);
       return;
+    }
+
+    // Clear append-only signal tables before re-running those passes to prevent duplicate rows.
+    if (clearSignals?.length && startupId) {
+      if (clearSignals.includes("youtube")) {
+        const { error } = await supabase.from("youtube_signals").delete().eq("startup_id", startupId);
+        if (error) console.warn(`[${jobId}] clear youtube_signals: ${error.message}`);
+        else console.log(`[${jobId}] Cleared youtube_signals for ${startupId}`);
+      }
+      if (clearSignals.includes("linkedin")) {
+        const { error } = await supabase.from("linkedin_signals").delete().eq("startup_id", startupId);
+        if (error) console.warn(`[${jobId}] clear linkedin_signals: ${error.message}`);
+        else console.log(`[${jobId}] Cleared linkedin_signals for ${startupId}`);
+      }
     }
 
     // Seed initialMerged from DB so computeScores has full data on partial/wave runs.

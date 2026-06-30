@@ -42,6 +42,12 @@ Startup research analyst. Do exactly 1 web search. Return ONLY valid JSON:
 Capture these field_names (field_pack="base" for all):
 Founders: founder_1_name, founder_1_role (title), founder_1_bio (2–3 sentence career narrative), founder_1_education (IIT/IIM/tier1/other — exact institution if known), founder_1_prior_startup (yes/no), founder_1_prior_exit (yes/no), founder_1_domain_years (number), founder_1_status (active/former), founder_1_linkedin_url, founder_1_is_iit_iim (yes/no). Repeat founder_2_*, founder_3_*, founder_4_*, founder_5_*, founder_6_*, founder_7_* if they exist.
 advisor_count (number), notable_advisors (comma-separated names).
+Employer classification for each founder (field_pack="base"):
+founder_1_prior_employer_type: faang|bigtech|tier1corp|big4consulting|startup|other — most prominent employer before this startup. faang=Google/Meta/Amazon/Apple/Netflix/Microsoft. bigtech=large Indian/global tech co (Flipkart, Swiggy, Razorpay, Ola, Paytm, Stripe etc.). tier1corp=large non-tech corp in consulting/finance/ops (McKinsey, BCG, Unilever, P&G). big4consulting=EY/KPMG/PwC/Deloitte in a consulting (not tech) role. startup=any prior startup (non-FAANG/bigtech). other=government/academic/military.
+founder_2_prior_employer_type: same classification for the co-founder.
+cofounder_overlap_years: number of years founder_1 and founder_2 have known or worked together before this startup (0 if first-time collaborators or unknown).
+advisor_1_org: organization the first/most prominent advisor comes from (e.g. "Sequoia Capital", "IIT Bombay", "McKinsey"). null if no advisors found.
+advisor_2_org: organization the second advisor comes from. null if fewer than 2 advisors.
 CXO / non-founder C-suite: for each person capture cxo_N_name, cxo_N_role, cxo_N_background (one sentence: prior orgs + domain expertise — e.g. "Ex-Razorpay CTO; 14yr in payments infra"). Roles to capture: CPO, COO, CFO, CMO, CTO, Chief AI Officer, SVP, VP-level non-founders (up to cxo_6). Only real names; omit background if unknown. CRITICAL: only include people currently in their stated role — if any evidence shows a person has left or is a former executive, omit them entirely.`,
     user: (co, country) => {
       const cname = country === "IN" ? "India" : country
@@ -110,6 +116,9 @@ Required raw_fields (ALL must have field_pack="funding"):
 - round_1_amount_usd_m through round_5_amount_usd_m: amount in USD millions as a plain number string
 - round_1_lead through round_5_lead: lead investor name for each round
 - round_1_investors through round_5_investors: all investors comma-separated as a single string
+- is_strategic_investor: yes/no — yes if any investor across all rounds is a corporate/CVC (e.g. Google, Tata, Reliance, Jio Platforms, Microsoft, Salesforce Ventures, Qualcomm Ventures) rather than a VC fund; check all round_N_investors strings before answering
+- last_round_type_detail: equity|safe|convertible_note|venture_debt|grant — specific legal instrument of the most recent round (distinct from the stage label like "Series A"); default to "equity" for standard priced rounds if instrument not specified
+- regulatory_license: specific regulatory license the company holds (e.g. "NBFC-MFI", "Payment Aggregator", "Insurance Broker", "Clinical Trial License", "Spectrum License") or "none" if no regulatory license required for this business model
 
 Currency rules: ₹85 Cr ≈ $1M. Always convert INR to USD for amount_usd_m. Never return null for amount just because it is in INR.
 last_round_type must be one of: Angel|Pre-Seed|Seed|Series A|Series B|Series C|Series D|Pre-IPO|IPO
@@ -144,6 +153,13 @@ Capture these field_names (field_pack must be "products" for all):
 - integrations_count: number of third-party integrations or partners listed (string number)
 - pricing_model: subscription|usage|freemium|one_time|enterprise|mixed
 - moat_type: proprietary_data|network_effects|switching_cost|regulatory_moat|deep_tech|brand|none
+- network_effects_type: none|direct|indirect|data|platform — strongest network effect in the product. direct=users benefit when more users join (messaging/social). indirect=two-sided network (marketplace/platform with buyers+sellers). data=product improves with more data/usage (AI/ML). platform=third-party devs/integrators build on top. none=no meaningful network effects.
+- app_store_rating: iOS App Store or Google Play rating (0.0–5.0 as string; "0" if no mobile app)
+- app_store_review_count: total review count across iOS + Android (string number; "0" if no mobile app)
+- patent_filed_count: total patents filed including pending and granted (string number; "0" if none)
+- patent_granted_count: patents actually granted/issued — not pending (string number; "0" if none)
+- patent_us_count: granted US patents specifically (USPTO grants; string number; "0" if none)
+- api_integration_count: number of third-party integrations/partners listed on the company's website or developer docs (string number; "0" if none)
 
 Only capture products 2–5 if they actually exist. If a field is unknown, set applicability="unknown" and raw_value=null.`,
     user: (co, country, ctx) => {
@@ -220,6 +236,11 @@ AWARDS: award_1 through award_5 (name + year in one string). Include ALL recogni
 SIGNALS: latest_news_headline, latest_news_date (YYYY-MM), expansion_target_market, volume_metric (operational scale e.g. "500M verifications/yr"), market_share (e.g. "60% Video KYC India"), ipo_signal (IPO/pre-IPO language if any)
 PARTNERSHIPS (structured — capture top 4 most significant): partnership_1_partner through partnership_4_partner (company/org name), partnership_1_category through partnership_4_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_4_usecase (what the company does for them), partnership_1_signal through partnership_4_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible. STRICTLY exclude investors, VCs, PE funds, and government funding bodies (e.g. SIDBI) — they belong in the funding pass. Only include commercial relationships: retailers, distributors, technology integrations, B2B clients, channel partners.
 QUOTES: key_quote_1_text (most insightful founder/investor quote found), key_quote_1_author, key_quote_2_text, key_quote_2_author
+ENRICHMENT (always include, even if value is "0" or "none"):
+- news_source_quality: tier1|tier2|blog — quality of the most prominent press coverage found. tier1=Economic Times/Mint/Business Standard/TechCrunch/Bloomberg/Forbes/Reuters. tier2=YourStory/Inc42/Entrackr/VC Circle/The Ken. blog=company blog/press release/unknown outlet.
+- named_enterprise_client_count: count of enterprise clients publicly named on the company website, case studies, or press releases (string number; "0" if none found)
+- partner_1_tier: enterprise|mid|small — quality of the most prominent commercial partnership. enterprise=Fortune 500/NSE 500 scale. mid=significant regional/sector player. small=SME or startup partner. Set to "none" if no partnerships found.
+- employee_count_1yr_ago: approximate team size 12 months ago (string number if findable from LinkedIn/Tracxn/news mentions of past headcount; null if not findable)
 
 Only include years/clients/awards you actually found. Do not fabricate data.`,
     user: (co, country, ctx) => {

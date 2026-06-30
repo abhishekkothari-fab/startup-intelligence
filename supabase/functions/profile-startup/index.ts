@@ -207,18 +207,30 @@ async function runResearch(
         if (thisJob?.startup_id) startupId = thisJob.startup_id;
         if (thisJob?.passes_status) passesStatus = thisJob.passes_status as PassesStatus;
       } else {
-        // User-facing only_passes: get startup_id from most recent completed/failed job.
-        // Exclude "running" to avoid matching the current job itself (which has startup_id=null).
+        // User-facing only_passes: get startup_id from most recent completed/failed job that
+        // actually has a startup_id. Exclude null rows (jobs that ran before startup_id was written).
         const { data: prevJob } = await supabase
           .from("profiling_jobs")
           .select("startup_id")
           .ilike("company_name", `%${company}%`)
           .eq("country", country)
           .in("status", ["completed", "failed"])
+          .not("startup_id", "is", null)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (prevJob?.startup_id) startupId = prevJob.startup_id;
+        if (prevJob?.startup_id) {
+          startupId = prevJob.startup_id;
+        } else {
+          // Fallback: look up startup directly by brand_name (handles legacy jobs with null startup_id)
+          const { data: existing } = await supabase
+            .from("startups")
+            .select("id")
+            .ilike("brand_name", company)
+            .eq("hq_country", country)
+            .maybeSingle();
+          if (existing?.id) startupId = existing.id;
+        }
       }
 
       // Pre-mark all non-requested passes as completed so the batch runner skips them.
@@ -339,6 +351,21 @@ async function runResearch(
         await updatePassStatus(supabase, jobId, forDB(updatedStatus));
       },
     });
+
+    // User-facing only_passes: if any requested passes got deferred (time ran out), fire
+    // another round with just the pending ones instead of finalizing. Gives each deferred
+    // pass a fresh 150s window. Guard with !isRetry to prevent infinite loops.
+    if (waveNum === undefined && onlyPasses?.length && !isRetry) {
+      const pendingPasses = onlyPasses.filter(p =>
+        passesStatus[p]?.status !== "completed" && passesStatus[p]?.status !== "failed"
+      )
+      if (pendingPasses.length > 0) {
+        console.log(`[${jobId}] only_passes deferred [${pendingPasses.join(",")}] — firing continuation`)
+        await updatePassStatus(supabase, jobId, forDB(passesStatus))
+        await fireOnlyPasses(jobId, company, country, pendingPasses, false, forceHaiku)
+        return
+      }
+    }
 
     const isLastWave = waveNum === undefined || waveNum === TOTAL_WAVES || Deno.env.get("MOCK_ANTHROPIC") === "true"
 

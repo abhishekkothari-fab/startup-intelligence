@@ -1017,28 +1017,6 @@ export default function ProfilePage({
                 </div>
               )}
 
-              <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "1.125rem 1.5rem" }}>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: "0.75rem", fontWeight: 500 }}>Universal Ratios</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 2rem" }}>
-                  {([
-                    ["Revenue CAGR (3yr)",    sc.r_traction_velocity    ? `${sc.r_traction_velocity}%`                                                                                      : null],
-                    ["Burn Multiple",         sc.r_burn_multiple        ? `${sc.r_burn_multiple}x`                                                                                      : null],
-                    ["Rev per Head",          sc.r_rev_per_head         ? `₹${sc.r_rev_per_head}L`                                                                                      : null],
-                    ["ACV Proxy",             sc.r_acv                  ? `₹${sc.r_acv}L/client`                                                                                        : null],
-                    ["Round Cadence",         sc.r_round_cadence        ? `${sc.r_round_cadence}/yr`                                                                                    : null],
-                    ["Valuation/ARR",         sc.r_valuation_arr_mult   ? `${sc.r_valuation_arr_mult}x`                                                                                 : null],
-                    ["Investor Tier",         sc.r_investor_quality     ? (["","Unknown","Govt/Grant","Angel","Tier 2","Tier 1"][sc.r_investor_quality] ?? String(sc.r_investor_quality)) : null],
-                    ["Product Lines",         sc.r_product_surface      ? `${sc.r_product_surface} line${sc.r_product_surface > 1 ? "s" : ""}`                                          : null],
-                    ["Founder Depth",         sc.r_founder_mkt_fit      ? `${sc.r_founder_mkt_fit}/10`                                                                                  : null],
-                    ["Capital Productivity",  sc.r_capital_productivity ? `${sc.r_capital_productivity}% rev/raised`                                                                   : null],
-                  ] as [string, string|null][]).map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0.5rem 0", borderBottom: "1px solid var(--border)", gap: "1rem" }}>
-                      <span style={{ fontSize: 12, color: "var(--text-s)" }}>{k}</span>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: v ? 500 : 400, color: v ? "var(--text-m)" : "var(--text-xs)", fontStyle: v ? "normal" : "italic", whiteSpace: "nowrap" }}>{v || "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </>
           )}
         </section>
@@ -1222,7 +1200,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
       onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
       onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "#fff"}>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: "var(--serif)", fontSize: 26, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )

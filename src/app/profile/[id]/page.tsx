@@ -1211,8 +1211,8 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
     <div style={{ background: "#fff", padding: "1.25rem 1.375rem", borderRadius: 8, border: "1px solid var(--border)", transition: "box-shadow 0.15s, border-color 0.15s" }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(17,19,24,0.08)"; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--blue-md)" }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)" }}>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)", marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 3 }}>{value}</div>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-s)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 500, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )

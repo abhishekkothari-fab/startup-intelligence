@@ -32,11 +32,11 @@ const WAVE_PASSES: Record<number, string[]> = {
   1: ["overview"],
   2: ["founders", "glassdoor"],
   3: ["funding", "regulatory"],
-  4: ["products"],
+  4: ["products", "competitive"],
   5: ["youtube", "signals"],
-  6: ["linkedin"],
+  6: ["linkedin", "insights"],
 }
-const TOTAL_WAVES = 7
+const TOTAL_WAVES = 6
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -236,7 +236,7 @@ async function runResearch(
       // Pre-mark all non-requested passes as completed so the batch runner skips them.
       // Only mark passes not already present in DB state (from prior waves).
       const now = new Date().toISOString();
-      for (const p of ["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin"] as const) {
+      for (const p of ["overview","founders","glassdoor","funding","competitive","products","regulatory","signals","youtube","linkedin","insights"] as const) {
         if (!onlyPasses.includes(p) && !passesStatus[p]) {
           passesStatus[p] = { status: "completed", completed_at: now };
           preMarked.add(p);

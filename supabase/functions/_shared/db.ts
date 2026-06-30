@@ -255,6 +255,11 @@ const STARTUP_SCALAR_FIELDS: (keyof StartupProfile)[] = [
   "glassdoor_rating", "glassdoor_reviews", "glassdoor_recommend",
   "glassdoor_wlb", "glassdoor_culture", "glassdoor_themes",
   "glassdoor_career_opp", "glassdoor_positive_outlook_pct", "glassdoor_interview_positive_pct",
+  "competitor_1_name", "competitor_1_funding_usd_m", "competitor_1_stage",
+  "competitor_2_name", "competitor_2_funding_usd_m", "competitor_2_stage",
+  "competitor_3_name", "competitor_3_funding_usd_m", "competitor_3_stage",
+  "market_leader_name", "geo_analog_company", "geo_analog_country",
+  "competitive_density", "differentiation_claim",
   "insights",
 ];
 
@@ -263,7 +268,8 @@ const INT_FIELDS  = new Set(["team_size", "client_count", "glassdoor_reviews", "
   "glassdoor_positive_outlook_pct", "glassdoor_interview_positive_pct"]);
 const NUM_FIELDS  = new Set(["revenue_inr_cr", "revenue_yoy_pct", "net_profit_inr_cr",
   "total_raised_usd_m", "last_round_size_inr_cr",
-  "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture", "glassdoor_career_opp"]);
+  "glassdoor_rating", "glassdoor_wlb", "glassdoor_culture", "glassdoor_career_opp",
+  "competitor_1_funding_usd_m", "competitor_2_funding_usd_m", "competitor_3_funding_usd_m"]);
 
 export async function writeStartupPartial(
   supabase: SupabaseClient,

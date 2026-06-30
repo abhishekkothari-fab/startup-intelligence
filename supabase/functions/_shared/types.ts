@@ -15,13 +15,13 @@ export type PassesStatus = Record<string, {
 
 export const PASS_NAMES = [
   "overview", "founders", "glassdoor", "funding",
-  "products", "regulatory", "signals", "youtube", "linkedin", "insights"
+  "competitive", "products", "regulatory", "signals", "youtube", "linkedin", "insights"
 ] as const
 export type PassName = typeof PASS_NAMES[number]
 
 export const PASS_PROGRESS: Record<PassName, number> = {
   overview: 12, founders: 22, glassdoor: 30, funding: 40,
-  products: 50, regulatory: 58, youtube: 65, signals: 76,
+  competitive: 47, products: 50, regulatory: 58, youtube: 65, signals: 76,
   linkedin: 88, insights: 96,
 }
 
@@ -76,6 +76,20 @@ export interface StartupProfile {
   glassdoor_career_opp?: number
   glassdoor_positive_outlook_pct?: number
   glassdoor_interview_positive_pct?: number
+  competitor_1_name?: string
+  competitor_1_funding_usd_m?: number
+  competitor_1_stage?: string
+  competitor_2_name?: string
+  competitor_2_funding_usd_m?: number
+  competitor_2_stage?: string
+  competitor_3_name?: string
+  competitor_3_funding_usd_m?: number
+  competitor_3_stage?: string
+  market_leader_name?: string
+  geo_analog_company?: string
+  geo_analog_country?: string
+  competitive_density?: string
+  differentiation_claim?: string
   scores: {
     stage: string
     scorecard_ids: string[]

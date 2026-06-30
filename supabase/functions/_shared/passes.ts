@@ -134,6 +134,63 @@ total_raised_usd_m must equal the arithmetic sum of ONLY confirmed numeric round
     timeoutMs: 100_000,
   },
 
+  competitive: {
+    system: `JSON only. Start with { end with }.
+
+Startup competitive intelligence analyst. Do up to 2 web searches to map the competitive landscape for the specified Indian startup.
+Search 1: target crunchbase.com, tracxn.com, or inc42.com for the top 3 direct competitors with funding and stage data.
+Search 2: target the company website, YourStory, or press coverage for their stated competitive differentiation and the market leader.
+
+CRITICAL: Populate raw_fields with evidence for each field you find. Source URLs are required.
+
+Return ONLY valid JSON:
+{
+  "competitor_1_name": null,
+  "competitor_1_funding_usd_m": null,
+  "competitor_1_stage": null,
+  "competitor_2_name": null,
+  "competitor_2_funding_usd_m": null,
+  "competitor_2_stage": null,
+  "competitor_3_name": null,
+  "competitor_3_funding_usd_m": null,
+  "competitor_3_stage": null,
+  "market_leader_name": null,
+  "geo_analog_company": null,
+  "geo_analog_country": null,
+  "competitive_density": "medium",
+  "differentiation_claim": null,
+  "raw_fields": [
+    {"field_name":"competitor_1_name","field_pack":"competitive","applicability":"applicable","raw_value":"SignDesk","source_type":"web","source_url":"https://tracxn.com/...","confidence":0.9}
+  ]
+}
+
+Field rules:
+- competitor_N_name: direct competitors in India, most funded / most prominent first. NEVER list the startup being researched.
+- competitor_N_funding_usd_m: total raised in USD millions as a number (null if not found). ₹85 Cr ≈ $1M. Never guess.
+- competitor_N_stage: pre_seed|seed|series_a|series_b_plus|growth|public (null if unknown)
+- market_leader_name: current dominant player in India for this specific market space (may overlap with competitor_1)
+- geo_analog_company: the globally successful company outside India with the same business model — e.g. "Stripe" for a payments API startup, "Gusto" for HR SaaS, "Faire" for B2B marketplace. Use LLM reasoning.
+- geo_analog_country: US|CN|EU|SEA|AU — home region of the geo_analog_company
+- competitive_density: low (<3 funded competitors in India)|medium (3–7)|high (8–15)|crowded (15+ or entrenched incumbents)
+- differentiation_claim: 1–2 sentences on the startup's primary stated differentiator vs competitors (from their own website or press; paraphrase concisely)
+
+Only populate competitor_2 and competitor_3 if genuinely found in search results. Set null for any field not found. Do not fabricate.`,
+    user: (co, country, ctx) => {
+      const cname = country === "IN" ? "India" : country
+      const sector = ctx?.industry ? ` ${ctx.industry}` : ""
+      const stage = ctx?.stage ? ` (${ctx.stage})` : ""
+      let siteHint = ""
+      if (ctx?.website) {
+        try { siteHint = ` OR site:${new URL(ctx.website).hostname}` } catch { /* ignore */ }
+      }
+      return `Search 1: "${co} ${cname}${sector} competitors alternatives" site:crunchbase.com OR site:tracxn.com OR site:inc42.com OR site:yourstory.com — find top 3 direct competitors in India with funding amounts and stage.\nSearch 2: "${co}" competitive advantage differentiation "market leader" OR "vs"${siteHint} — find how ${co} differentiates from competitors and who dominates this market in India.\nReturn competitive landscape JSON for the Indian${sector}${stage} startup ${co}.`
+    },
+    maxTokens: 3000,
+    maxSearches: 2,
+    model: "claude-haiku-4-5-20251001",
+    timeoutMs: 90_000,
+  },
+
   products: {
     system: `JSON only. Start with { end with }.
 

@@ -28,17 +28,18 @@ const NAV_GROUPS = [
   ]},
   { group: "Ecosystem", items: [
     { n: "05", id: "s06", label: "Funding" },
-    { n: "06", id: "s07", label: "Partnerships" },
-    { n: "07", id: "s12", label: "Recognitions" },
+    { n: "06", id: "s13", label: "Competitive" },
+    { n: "07", id: "s07", label: "Partnerships" },
+    { n: "08", id: "s12", label: "Recognitions" },
   ]},
   { group: "Social Media", items: [
-    { n: "08", id: "s09", label: "LinkedIn" },
-    { n: "09", id: "s10", label: "Glassdoor" },
-    { n: "10", id: "s08", label: "YouTube" },
+    { n: "09", id: "s09", label: "LinkedIn" },
+    { n: "10", id: "s10", label: "Glassdoor" },
+    { n: "11", id: "s08", label: "YouTube" },
   ]},
   { group: "Analysis", items: [
-    { n: "11", id: "s03", label: "Scorecard" },
-    { n: "12", id: "s11", label: "Strategic Insights" },
+    { n: "12", id: "s03", label: "Scorecard" },
+    { n: "13", id: "s11", label: "Strategic Insights" },
   ]},
 ]
 
@@ -206,6 +207,14 @@ export default function ProfilePage({
     bull_case?: string; bear_case?: string;
   } | null | undefined
 
+  const competitors = [1,2,3]
+    .map(n => ({
+      name:    str((s as Record<string,unknown>)[`competitor_${n}_name`]),
+      funding: (s as Record<string,unknown>)[`competitor_${n}_funding_usd_m`] != null ? str((s as Record<string,unknown>)[`competitor_${n}_funding_usd_m`]) : null,
+      stage:   str((s as Record<string,unknown>)[`competitor_${n}_stage`]),
+    }))
+    .filter(c => c.name)
+
   const keyQuoteText    = rv("key_quote_1_text")
   const keyQuoteAuthor  = rv("key_quote_1_author")
   const keyQuote2Text   = rv("key_quote_2_text")
@@ -293,7 +302,7 @@ export default function ProfilePage({
               Researching…
             </span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {["overview","founders","glassdoor","funding","products","regulatory","signals","youtube","linkedin"].map(p => {
+              {["overview","founders","glassdoor","funding","competitive","products","regulatory","signals","youtube","linkedin"].map(p => {
                 const done = jobPasses?.completed.includes(p)
                 const fail = jobPasses?.failed.includes(p)
                 return (
@@ -598,9 +607,77 @@ export default function ProfilePage({
           )}
         </section>
 
+        {/* ── S13 COMPETITIVE LANDSCAPE ── */}
+        <section data-sec="s13" id="s13" style={SEC}>
+          <SecHeader n="06" title="Competitive Landscape" badge="Pass 5" />
+          {!str(s.competitive_density) && !competitors.length && !str(s.market_leader_name) ? (
+            <Empty>No competitive data collected yet.</Empty>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.25rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 6 }}>Market Density</div>
+                  {str(s.competitive_density) ? (
+                    <span style={{
+                      fontFamily: "var(--mono)", fontSize: 14, fontWeight: 700, textTransform: "capitalize",
+                      color: str(s.competitive_density) === "low" ? "var(--green)" : str(s.competitive_density) === "medium" ? "var(--amber)" : "var(--red)"
+                    }}>{str(s.competitive_density)}</span>
+                  ) : <span style={{ color: "var(--text-xs)", fontStyle: "italic" }}>—</span>}
+                </div>
+                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.25rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 6 }}>Market Leader (India)</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-h)" }}>{str(s.market_leader_name) || "—"}</div>
+                </div>
+                <div style={{ background: "var(--blue-lt)", border: "1px solid var(--blue-md)", borderRadius: 8, padding: "1rem 1.25rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--blue)", marginBottom: 6 }}>Global Comparable</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)" }}>
+                    {str(s.geo_analog_company) ? `${str(s.geo_analog_company)} (${str(s.geo_analog_country) || "—"})` : "—"}
+                  </div>
+                </div>
+              </div>
+
+              {competitors.length > 0 && (
+                <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "var(--bg-soft)" }}>
+                        {["Competitor","Stage","Total Raised"].map(h => (
+                          <th key={h} style={{ textAlign: "left", fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", fontWeight: 500, padding: "0.625rem 1rem", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {competitors.map((c, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "#fff" : "var(--bg-soft)" }}>
+                          <td style={{ padding: "0.75rem 1rem", fontSize: 13, fontWeight: 600, color: "var(--text-h)" }}>{c.name}</td>
+                          <td style={{ padding: "0.75rem 1rem" }}>
+                            {c.stage
+                              ? <span style={{ fontFamily: "var(--mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4, background: "var(--bg-soft)", color: "var(--navy)", border: "1px solid var(--border-md)" }}>{c.stage.replace(/_/g," ")}</span>
+                              : <span style={{ color: "var(--text-xs)", fontStyle: "italic", fontSize: 12 }}>—</span>}
+                          </td>
+                          <td style={{ padding: "0.75rem 1rem", fontFamily: "var(--mono)", fontSize: 13, color: c.funding ? "var(--text-m)" : "var(--text-xs)", fontStyle: c.funding ? "normal" : "italic" }}>
+                            {c.funding ? `$${c.funding}M` : "undisclosed"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {str(s.differentiation_claim) && (
+                <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: "0.5rem", fontWeight: 500 }}>Stated Differentiation</div>
+                  <p style={{ fontSize: 13, color: "var(--text-m)", lineHeight: 1.7, margin: 0 }}>{str(s.differentiation_claim)}</p>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
         {/* ── S07 PARTNERSHIPS ── */}
         <section data-sec="s07" id="s07" style={SEC}>
-          <SecHeader n="06" title="Partnerships" />
+          <SecHeader n="07" title="Partnerships" />
           {partnerships.length === 0 ? <Empty>No partnership data collected yet.</Empty> : (
             <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -640,7 +717,7 @@ export default function ProfilePage({
 
         {/* ── S12 RECOGNITIONS ── */}
         <section data-sec="s12" id="s12" style={SEC}>
-          <SecHeader n="07" title="Recognitions" />
+          <SecHeader n="08" title="Recognitions" />
           {awards.length === 0 ? <Empty>No awards or recognitions collected yet.</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: "1rem" }}>
               {awards.map((award, i) => (
@@ -657,7 +734,7 @@ export default function ProfilePage({
 
         {/* ── S09 LINKEDIN ── */}
         <section data-sec="s09" id="s09" style={SEC}>
-          <SecHeader n="08" title="LinkedIn" badge="Passes 8+9" />
+          <SecHeader n="09" title="LinkedIn" badge="Passes 8+9" />
           {profile.linkedin.length === 0 ? <Empty>No LinkedIn signals collected.</Empty> : (
             <>
               {[
@@ -695,7 +772,7 @@ export default function ProfilePage({
 
         {/* ── S10 GLASSDOOR ── */}
         <section data-sec="s10" id="s10" style={SEC}>
-          <SecHeader n="09" title="Glassdoor" badge="Pass 3" />
+          <SecHeader n="10" title="Glassdoor" badge="Pass 3" />
           {!s.glassdoor_rating && !s.glassdoor_wlb && !s.glassdoor_recommend && !s.glassdoor_themes ? <Empty>No Glassdoor data collected.</Empty> : (
             <div style={{ display: "grid", gridTemplateColumns: s.glassdoor_rating ? "160px 1fr" : "1fr", gap: "2rem", background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1.5rem", alignItems: "start" }}>
               {!!s.glassdoor_rating && (
@@ -759,7 +836,7 @@ export default function ProfilePage({
 
         {/* ── S08 YOUTUBE ── */}
         <section data-sec="s08" id="s08" style={SEC}>
-          <SecHeader n="10" title="YouTube" badge="Pass 7" />
+          <SecHeader n="11" title="YouTube" badge="Pass 7" />
           {profile.youtube.length === 0 ? <Empty>No YouTube data collected.</Empty> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)", border: "1px solid var(--border)", borderRadius: "8px 8px 0 0", overflow: "hidden" }}>
@@ -803,7 +880,7 @@ export default function ProfilePage({
 
         {/* ── S03 SCORECARD ── */}
         <section data-sec="s03" id="s03" style={SEC}>
-          <SecHeader n="11" title="Scorecard" action={
+          <SecHeader n="12" title="Scorecard" action={
             <button onClick={handleRescore} disabled={rescoring} style={{
               fontFamily: "var(--mono)", fontSize: 10, fontWeight: 500,
               textTransform: "uppercase", letterSpacing: "0.06em",
@@ -934,7 +1011,7 @@ export default function ProfilePage({
 
         {/* ── S11 STRATEGIC INSIGHTS ── */}
         <section data-sec="s11" id="s11" style={{ ...SEC, borderBottom: "none" }}>
-          <SecHeader n="12" title="Strategic Insights" badge="VC Synthesis" />
+          <SecHeader n="13" title="Strategic Insights" badge="VC Synthesis" />
           {!vcInsights?.thesis ? (
             <Empty>No strategic insights yet. Trigger an insights pass to generate VC-grade analysis.</Empty>
           ) : (

@@ -406,7 +406,7 @@ export default function ProfilePage({
                   const isCur = i === arr.length - 1
                   return (
                     <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
-                      <div style={{ position: "absolute", top: -17, left: "50%", transform: "translateX(-50%)", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 700 : 500, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>₹{r.inr}</div>
+                      <div style={{ position: "absolute", top: -17, left: "50%", transform: "translateX(-50%)", fontFamily: "var(--mono)", fontSize: 9, fontWeight: isCur ? 500 : 400, color: isCur ? "var(--navy)" : "var(--text-s)", whiteSpace: "nowrap" }}>₹{r.inr}</div>
                       <div style={{ width: "100%", height: pct, background: isCur ? "var(--navy)" : "var(--blue-md)", borderRadius: "3px 3px 0 0" }}/>
                       <div style={{ marginTop: 5, fontFamily: "var(--mono)", fontSize: 9, color: isCur ? "var(--navy)" : "var(--text-xs)", fontWeight: isCur ? 500 : 400 }}>{r.year}</div>
                     </div>
@@ -433,7 +433,7 @@ export default function ProfilePage({
                   <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--blue)", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
                     <span>Latest News</span>{latestNewsDate && <span>{latestNewsDate}</span>}
                   </div>
-                  <p style={{ fontSize: 13, color: "var(--navy)", lineHeight: 1.55, fontWeight: 500, margin: 0 }}>{latestNews}</p>
+                  <p style={{ fontSize: 13, color: "var(--navy)", lineHeight: 1.55, margin: 0 }}>{latestNews}</p>
                 </div>
               )}
               {marketShare && (
@@ -1200,7 +1200,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
       onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-soft)"}
       onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "#fff"}>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-xs)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 500, color: color || "var(--text-h)", lineHeight: 1.1, marginBottom: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: "var(--text-s)", lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )

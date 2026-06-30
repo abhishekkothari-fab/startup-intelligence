@@ -4,10 +4,6 @@ import { useRouter } from "next/navigation"
 import { getStartups, triggerProfile, pollJob, type StartupRow } from "@/lib/api"
 import { createClient } from "@/lib/supabase-auth"
 
-const STAGES    = ["", "pre_seed", "seed", "series_a", "series_b_plus", "growth"]
-const INDUSTRIES = ["", "BFSI", "AI_Infra", "D2C", "Health", "Logistics", "EdTech_HRTech"]
-const SORTS     = ["composite_score", "revenue_inr_cr", "total_raised_usd_m", "team_size"]
-
 const SCORECARD_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
   saas:        { label: "B2B SaaS",    color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
   d2c:         { label: "D2C",         color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
@@ -22,19 +18,19 @@ const S: Record<string, string> = {
   series_b_plus: "Series B+", growth: "Growth"
 }
 
-const COL_DEFS = [
-  { label: "Rank",      w: 52  },
-  { label: "Company",   w: 210 },
-  { label: "Stage",     w: 100 },
-  { label: "Industry",  w: 120 },
-  { label: "Revenue",   w: 105 },
-  { label: "Raised",    w: 105 },
-  { label: "Score",     w: 68  },
-  { label: "DQ",        w: 58  },
-  { label: "Scorecard", w: 160 },
-  { label: "Refreshed", w: 95  },
-  { label: "Scored",    w: 95  },
-  { label: "",          w: 68  },
+const COL_DEFS: { label: string; w: number; sortKey: string | null }[] = [
+  { label: "Rank",      w: 52,  sortKey: null },
+  { label: "Company",   w: 210, sortKey: "brand_name" },
+  { label: "Stage",     w: 100, sortKey: null },
+  { label: "Industry",  w: 120, sortKey: null },
+  { label: "Revenue",   w: 105, sortKey: "revenue_inr_cr" },
+  { label: "Raised",    w: 105, sortKey: "total_raised_usd_m" },
+  { label: "Score",     w: 68,  sortKey: "composite_score" },
+  { label: "DQ",        w: 58,  sortKey: "data_quality_pct" },
+  { label: "Scorecard", w: 160, sortKey: null },
+  { label: "Refreshed", w: 95,  sortKey: "last_collected_at" },
+  { label: "Scored",    w: 95,  sortKey: "last_scored_at" },
+  { label: "",          w: 68,  sortKey: null },
 ]
 
 export default function HomePage() {
@@ -43,9 +39,8 @@ export default function HomePage() {
   const [total,   setTotal]   = useState(0)
   const [loading, setLoading] = useState(true)
   const [page,    setPage]    = useState(1)
-  const [stage,   setStage]   = useState("")
-  const [industry,setIndustry]= useState("")
   const [sort,    setSort]    = useState("composite_score")
+  const [dir,     setDir]     = useState<"asc"|"desc">("desc")
 
   // Search
   const [search,         setSearch]         = useState("")
@@ -85,13 +80,23 @@ export default function HomePage() {
     return () => clearTimeout(t)
   }, [search])
 
+  function handleColSort(key: string) {
+    if (sort === key) {
+      setDir(d => d === "desc" ? "asc" : "desc")
+    } else {
+      setSort(key)
+      setDir("desc")
+    }
+    setPage(1)
+  }
+
   useEffect(() => {
     setLoading(true)
-    getStartups({ page, stage: stage||undefined, industry: industry||undefined, sort, search: debouncedSearch||undefined })
+    getStartups({ page, sort, dir, search: debouncedSearch||undefined })
       .then(r => { setRows(r.data); setTotal(r.total) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [page, stage, industry, sort, debouncedSearch])
+  }, [page, sort, dir, debouncedSearch])
 
   async function handleTrigger() {
     if (!company.trim()) return
@@ -186,23 +191,8 @@ export default function HomePage() {
 
       <main style={{ flex: 1, maxWidth: 1520, margin: "0 auto", padding: "1.5rem", width: "100%" }}>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 10, marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
-          <select value={stage} onChange={e => { setStage(e.target.value); setPage(1) }}
-            style={selStyle}>
-            {STAGES.map(s => <option key={s} value={s}>{s ? S[s]||s : "All stages"}</option>)}
-          </select>
-          <select value={industry} onChange={e => { setIndustry(e.target.value); setPage(1) }}
-            style={selStyle}>
-            {INDUSTRIES.map(i => <option key={i} value={i}>{i || "All industries"}</option>)}
-          </select>
-          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1) }}
-            style={selStyle}>
-            {SORTS.map(s => <option key={s} value={s}>Sort: {s.replace(/_/g," ")}</option>)}
-          </select>
-          <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-s)" }}>
-            {total} startups
-          </span>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+          <span style={{ fontSize: 13, color: "var(--text-s)" }}>{total} startups</span>
         </div>
 
         {/* Table */}
@@ -223,19 +213,28 @@ export default function HomePage() {
               </colgroup>
               <thead>
                 <tr style={{ background: "var(--bg-soft)", borderBottom: "1.5px solid var(--border-md)" }}>
-                  {COL_DEFS.map(({ label }, i) => (
-                    <th key={label || "__view"} style={{ ...thStyle, position: "relative", userSelect: "none" }}>
-                      {label}
-                      {i < COL_DEFS.length - 1 && (
-                        <div
-                          onMouseDown={e => startResize(i, e)}
-                          style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 5, cursor: "col-resize", zIndex: 1 }}
-                          onMouseEnter={e => (e.currentTarget.style.background = "var(--border-md)")}
-                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                        />
-                      )}
-                    </th>
-                  ))}
+                  {COL_DEFS.map(({ label, sortKey }, i) => {
+                    const isActive = sortKey && sort === sortKey
+                    return (
+                      <th key={label || "__view"} style={{ ...thStyle, position: "relative", userSelect: "none", cursor: sortKey ? "pointer" : "default", whiteSpace: "nowrap" }}
+                        onClick={() => sortKey && handleColSort(sortKey)}>
+                        <span style={{ color: isActive ? "var(--navy)" : undefined }}>{label}</span>
+                        {sortKey && (
+                          <span style={{ marginLeft: 4, opacity: isActive ? 1 : 0.25, fontSize: 9 }}>
+                            {isActive ? (dir === "desc" ? "↓" : "↑") : "↕"}
+                          </span>
+                        )}
+                        {i < COL_DEFS.length - 1 && (
+                          <div
+                            onMouseDown={e => { e.stopPropagation(); startResize(i, e) }}
+                            style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 5, cursor: "col-resize", zIndex: 1 }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "var(--border-md)")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                          />
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -397,10 +396,6 @@ export default function HomePage() {
 }
 
 // ── Styles ──────────────────────────────────────────────────────
-const selStyle: React.CSSProperties = {
-  border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px",
-  fontSize: 13, color: "var(--text-b)", background: "#fff", cursor: "pointer"
-}
 const thStyle: React.CSSProperties = {
   textAlign: "left", padding: "8px 12px",
   fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase",

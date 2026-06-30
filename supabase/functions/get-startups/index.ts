@@ -27,8 +27,10 @@ serve(async (req) => {
   const search   = url.searchParams.get("search");
   const sortBy   = url.searchParams.get("sort") ?? "composite_score";
 
-  const ALLOWED_SORTS = ["composite_score", "revenue_inr_cr", "team_size", "total_raised_usd_m"];
+  const ALLOWED_SORTS = ["composite_score", "revenue_inr_cr", "team_size", "total_raised_usd_m", "data_quality_pct", "brand_name", "last_collected_at", "last_scored_at"];
   const sort = ALLOWED_SORTS.includes(sortBy) ? sortBy : "composite_score";
+  const dirParam = url.searchParams.get("dir") ?? "desc";
+  const ascending = dirParam === "asc";
 
   const supabase = getSupabaseClient();
 
@@ -42,7 +44,7 @@ serve(async (req) => {
   if (search)   query = query.ilike("brand_name", `%${search}%`);
 
   query = query
-    .order(sort, { ascending: false, nullsFirst: false })
+    .order(sort, { ascending, nullsFirst: false })
     .range((page - 1) * limit, page * limit - 1);
 
   const { data, error, count } = await query;

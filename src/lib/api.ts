@@ -232,17 +232,15 @@ export async function rescoreStartup(id: string): Promise<{ composite_score: num
 export async function getStartups(params?: {
   page?:     number
   limit?:    number
-  stage?:    string
-  industry?: string
   sort?:     string
+  dir?:      string
   search?:   string
 }): Promise<{ data: StartupRow[]; total: number; pages: number }> {
   const qs = new URLSearchParams()
   if (params?.page)     qs.set("page",     String(params.page))
   if (params?.limit)    qs.set("limit",    String(params.limit))
-  if (params?.stage)    qs.set("stage",    params.stage)
-  if (params?.industry) qs.set("industry", params.industry)
   if (params?.sort)     qs.set("sort",     params.sort)
+  if (params?.dir)      qs.set("dir",      params.dir)
   if (params?.search)   qs.set("search",   params.search)
   const res = await fetch(`${BASE}/get-startups?${qs}`, { headers: headers() })
   if (!res.ok) throw new Error(`Leaderboard fetch failed: ${await res.text()}`)

@@ -1,9 +1,119 @@
-// supabase/functions/_shared/scoring.ts  —  scoring v7
+// supabase/functions/_shared/scoring.ts  —  scoring v8
 
 import type { StartupProfile } from "./types.ts"
 
-const USD_TO_INR      = 83                // 1 USD in INR — update here when rate changes
-const USD_M_TO_INR_CR = USD_TO_INR / 10  // 1M USD = 8.3 Cr INR
+const USD_TO_INR      = 83
+const USD_M_TO_INR_CR = USD_TO_INR / 10
+
+// ── Investor tier overrides ────────────────────────────────────────────────
+// Canonical tier for global funds that profiling passes frequently misclassify.
+// Keys are lowercased investor names. Add new entries as discovered.
+const INVESTOR_TIER_OVERRIDES: Record<string, string> = {
+  // Tier-1 global VCs (top-decile portfolios, proven DPI)
+  "ribbit capital": "tier1",
+  "general catalyst": "tier1",
+  "bessemer venture partners": "tier1",
+  "bessemer": "tier1",
+  "bain capital ventures": "tier1",
+  "iconiq growth": "tier1",
+  "iconiq capital": "tier1",
+  "tcv": "tier1",
+  "technology crossover ventures": "tier1",
+  "prosus": "tier1",
+  "naspers": "tier1",
+  "y combinator": "tier1",
+  "andreessen horowitz": "tier1",
+  "a16z": "tier1",
+  "khosla ventures": "tier1",
+  "coatue management": "tier1",
+  "coatue": "tier1",
+  "insight partners": "tier1",
+  "tiger global": "tier1",
+  "tiger global management": "tier1",
+  "bond capital": "tier1",
+  "dst global": "tier1",
+  "dragoneer investment group": "tier1",
+  "dragoneer": "tier1",
+  "b capital": "tier1",
+  "glade brook capital": "tier2",  // growth equity hedge fund — keep tier2
+  // Sovereign wealth / major institutional (highest validation signal)
+  "gic": "tier1",
+  "gic private limited": "tier1",
+  "temasek": "tier1",
+  "adia": "tier1",
+  "abu dhabi investment authority": "tier1",
+  "canada pension plan": "tier1",
+  "cppib": "tier1",
+  "ontario teachers": "tier1",
+  // India-specific top funds (operator-led, high DPI track record)
+  "fundamentum partnership": "tier1",
+  "fundamentum": "tier1",
+}
+
+function tierPriority(t: string): number {
+  const order = ["tier1", "strategic_tier1", "tier2", "tier3", "angel", "govt"]
+  const i = order.indexOf(t)
+  return i === -1 ? 99 : i
+}
+
+function resolveInvestorTier(rawName: string, rawTier: string): string {
+  const key = rawName.toLowerCase().trim()
+  return INVESTOR_TIER_OVERRIDES[key] ?? rawTier
+}
+
+// ── fm normalizer ─────────────────────────────────────────────────────────
+// Applied after building fm from raw_fields. Bridges field name gaps between
+// profiling passes and scoring functions, and cleans up common data quality issues.
+function normalizeFm(fm: Record<string, string>, merged: Partial<StartupProfile>): void {
+  // 1. Bridge moat_type → legacy scoring fields (scoring reads both paths)
+  const moat = fm["moat_type"] || ""
+  if (moat === "network_effects" && !fm["network_effects_type"]) fm["network_effects_type"] = "direct"
+  if (moat === "switching_cost"  && !fm["switching_cost_signal"]) fm["switching_cost_signal"] = "high"
+
+  // 2. Bridge patent_count → patent_granted_count when granted not explicitly stored
+  if (fm["patent_count"] && !fm["patent_granted_count"]) fm["patent_granted_count"] = fm["patent_count"]
+
+  // 3. Null out negative-result text stored in award/partner fields by the pass
+  const negPattern = /no\s+(award|recogni|partner|commercial|strategic|formal|found)|not found|none found|no commercial|could not find/i
+  for (const key of ["award_1","award_2","award_3","partnership_1","partnership_1_partner","partnership_2_partner","partnership_3_partner"]) {
+    if (fm[key] && negPattern.test(fm[key])) delete fm[key]
+  }
+
+  // 4. Infer regulatory_license from industry when not explicitly set
+  if (!fm["regulatory_license"]) {
+    const biz = (merged.auto_biz_model || "").toLowerCase()
+    const pack = (merged.auto_entity_pack || "").toLowerCase()
+    if (/nbfc/.test(pack) || biz === "lending" || biz === "nbfc") fm["regulatory_license"] = "nbfc"
+    else if (/insurance/.test(pack))  fm["regulatory_license"] = "insurance"
+    else if (/fintech|bfsi/.test(pack)) fm["regulatory_license"] = "financial_services"
+  }
+
+  // 5. Extract employer type and exit signals from founder bio when structured fields missing
+  const bio = (fm["founder_1_bio"] || "").toLowerCase()
+  if (bio) {
+    if (!fm["founder_1_prior_employer_type"]) {
+      if (/\b(google|amazon|meta|facebook|microsoft|apple|netflix|uber|airbnb|stripe|openai)\b/.test(bio))
+        fm["founder_1_prior_employer_type"] = "faang"
+      else if (/\b(flipkart|swiggy|zomato|paytm|ola|meesho|razorpay|phonepe|cred|zepto)\b/.test(bio))
+        fm["founder_1_prior_employer_type"] = "bigtech"
+      else if (/\b(bain capital|kkr|blackstone|carlyle|goldman sachs|jp morgan|morgan stanley)\b/.test(bio))
+        fm["founder_1_prior_employer_type"] = "bigtech"
+      else if (/\b(mckinsey|bain\b|bcg|kpmg|pwc|deloitte)\b/.test(bio))
+        fm["founder_1_prior_employer_type"] = "big4consulting"
+    }
+    if (!fm["founder_1_prior_exit"] && /acquired|acquisition|exit|sold to|ipo'd|went public|sold.*company/i.test(bio))
+      fm["founder_1_prior_exit"] = "yes"
+    if (!fm["founder_1_prior_startup"] && /co-founded|co founder|previously founded|serial entrepreneur|started.*company/i.test(bio))
+      fm["founder_1_prior_startup"] = "yes"
+  }
+
+  // 6. Enterprise partner tier inference from partner name
+  const p1 = (fm["partnership_1_partner"] || "").toLowerCase()
+  if (p1 && !fm["partner_1_tier"]) {
+    if (/hdfc|icici|axis|kotak|sbi|yes bank|reliance|tata|walmart|amazon|google|microsoft|salesforce|sap|oracle/.test(p1))
+      fm["partner_1_tier"] = "enterprise"
+  }
+}
 
 // ── Scorecard selection ────────────────────────────────────────────────────
 
@@ -313,38 +423,43 @@ function scoreCapital(fm: Record<string, string>, merged: Partial<StartupProfile
 function scoreDefensibility(fm: Record<string, string>, merged: Partial<StartupProfile>): number {
   let s = 0
 
-  // Network effects: platform moat is strongest; data > indirect > direct
-  const netType = fm["network_effects_type"] || "none"
-  if      (netType === "platform")  s += 45
-  else if (netType === "indirect")  s += 35
-  else if (netType === "direct")    s += 30
-  else if (netType === "data")      s += 20
+  // Moat type: read from moat_type (products pass) with legacy network_effects_type fallback.
+  // normalizeFm has already bridged moat_type → network_effects_type / switching_cost_signal.
+  const moatType = fm["moat_type"] || ""
+  const netType  = fm["network_effects_type"] || ""
+  const hasMoat  = fm["has_technical_moat"] === "yes"
+
+  if      (moatType === "network_effects" || netType === "platform")  s += 45
+  else if (netType  === "indirect")                                    s += 35
+  else if (netType  === "direct" || netType === "data")               s += 30
+  else if (moatType === "deep_tech")                                   s += 25
+  else if (moatType === "proprietary_data")                            s += 20
+  else if (moatType === "switching_cost" || fm["switching_cost_signal"] === "high") s += 15
+  else if (hasMoat)                                                    s += 10
 
   // Regulatory moat: licensed businesses have structural barriers to entry
   const regLicense = (fm["regulatory_license"] || "").toLowerCase()
-  if (regLicense && regLicense !== "none" && regLicense !== "not applicable" && regLicense !== "n/a") {
+  if (regLicense && !/^(none|not applicable|n\/a)$/.test(regLicense.trim())) {
     const highBarrier = /nbfc|insurance|banking|rbi|sebi|spectrum|clinical/.test(regLicense)
-    s += highBarrier ? 35 : 25
+    s += highBarrier ? 35 : 20
   }
 
-  // Patent moat: granted >> filed; US patents are global premium signal
+  // Patents: patent_count (products pass) with patent_granted_count fallback (already bridged by normalizeFm)
   const grantedPatents = parseInt(fm["patent_granted_count"] || "0")
   const usPatents      = parseInt(fm["patent_us_count"]      || "0")
   if      (grantedPatents >= 5 || usPatents >= 2) s += 30
   else if (usPatents >= 1)                        s += 20
   else if (grantedPatents >= 1)                   s += 10
 
-  // Switching cost: ERP integrations and compliance workflows create lock-in
-  const switchCost = fm["switching_cost_signal"] || ""
-  if      (switchCost === "high")     s += 20
-  else if (switchCost === "moderate") s += 10
+  // Moderate switching cost (legacy direct field)
+  if (fm["switching_cost_signal"] === "moderate" && s < 15) s += 10
 
-  // Ecosystem embedding: published API integrations = stickiness
+  // API ecosystem embedding: stickiness signal
   const apiIntCount = parseInt(fm["api_integration_count"] || "0")
   if      (apiIntCount >= 50) s += 10
   else if (apiIntCount >= 10) s += 5
 
-  // Model proven elsewhere: geo analog de-risks the thesis
+  // Geo analog validates the model
   if (merged.geo_analog_company) s += 5
 
   return Math.min(100, s)
@@ -535,6 +650,7 @@ function scoreUnitEcon(fm: Record<string, string>, merged: Partial<StartupProfil
 function scoreMomentum(fm: Record<string, string>, merged: Partial<StartupProfile>): number {
   let s = 10
 
+  // normalizeFm already deleted negative-result strings; any remaining value is a real signal
   if (fm["award_1"]) s += 20
 
   // Partnership: tier-weighted when available (Tier 2), flat bonus fallback for old profiles
@@ -543,7 +659,7 @@ function scoreMomentum(fm: Record<string, string>, merged: Partial<StartupProfil
   if      (partnerTier === "enterprise") s += 20
   else if (partnerTier === "mid")        s += 10
   else if (partnerTier === "small")      s += 5
-  else if (hasPartner)                   s += 20
+  else if (hasPartner)                   s += 15  // unknown tier: conservative default (was 20)
 
   // News quality: tier-based scoring (Tier 2) replaces flat +15
   const newsQuality = fm["news_source_quality"] || ""
@@ -590,11 +706,22 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
     else if (raisedUsd >= 5   && stage === "pre_seed")                            stage = "seed"
   }
 
-  // Field lookup from raw_fields
+  // Field lookup from raw_fields; normalize before any scoring function reads fm
   const fm: Record<string, string> = {}
   for (const f of (merged.raw_fields || [])) {
     if (f.raw_value && f.raw_value !== "unknown") fm[f.field_name] = f.raw_value.toLowerCase()
   }
+  normalizeFm(fm, merged)
+
+  // Apply investor tier overrides + take best tier across investor_1..5
+  let bestInvestorTier = fm["investor_1_tier"] || ""
+  for (let i = 1; i <= 5; i++) {
+    const name = fm[`investor_${i}_name`] || ""
+    const tier = fm[`investor_${i}_tier`] || ""
+    const resolved = name ? resolveInvestorTier(name, tier) : tier
+    if (resolved && tierPriority(resolved) < tierPriority(bestInvestorTier)) bestInvestorTier = resolved
+  }
+  if (bestInvestorTier) fm["investor_1_tier"] = bestInvestorTier
 
   // Select scorecards (1–2)
   const scorecardIds     = selectScorecards(merged)
@@ -604,14 +731,14 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const defScore = scoreDefensibility(fm, merged)
 
   const sets = scorecardIds.map(sc => ({
-    w:            getWeights(sc, stage),
-    team:         scoreTeam(fm),
-    traction:     scoreTraction(fm, merged, sc),
-    capital:      scoreCapital(fm, merged),
-    product:      scoreProduct(fm, sc, stage),
-    market:       scoreMarket(merged),
-    unitEcon:     scoreUnitEcon(fm, merged, sc),
-    momentum:     scoreMomentum(fm, merged),
+    w:             getWeights(sc, stage),
+    team:          scoreTeam(fm),
+    traction:      scoreTraction(fm, merged, sc),
+    capital:       scoreCapital(fm, merged),
+    product:       scoreProduct(fm, sc, stage),
+    market:        scoreMarket(merged),
+    unitEcon:      scoreUnitEcon(fm, merged, sc),
+    momentum:      scoreMomentum(fm, merged),
     defensibility: defScore,
   }))
 
@@ -619,55 +746,71 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const avg  = (fn: (d: typeof sets[0]) => number) => Math.round(sets.reduce((s, d) => s + fn(d), 0) / n)
   const avgW = (i: number) => Math.round(sets.reduce((s, d) => s + d.w[i], 0) / n * 100) / 100
 
-  const dimTeam         = avg(d => d.team)
-  const dimTraction     = avg(d => d.traction)
-  const dimCapital      = avg(d => d.capital)
-  const dimProduct      = avg(d => d.product)
-  const dimMarket       = avg(d => d.market)
-  const dimUnitEcon     = avg(d => d.unitEcon)
-  const dimMomentum     = avg(d => d.momentum)
+  const dimTeam          = avg(d => d.team)
+  const dimTraction      = avg(d => d.traction)
+  const dimCapital       = avg(d => d.capital)
+  const dimProduct       = avg(d => d.product)
+  const dimMarket        = avg(d => d.market)
+  const dimUnitEcon      = avg(d => d.unitEcon)
+  const dimMomentum      = avg(d => d.momentum)
   const dimDefensibility = avg(d => d.defensibility)
 
-  const wt  = avgW(0)  // team
-  const wtr = avgW(1)  // traction
-  const wc  = avgW(2)  // capital
-  const wp  = avgW(3)  // product
-  const wm  = avgW(4)  // market
-  const wu  = avgW(5)  // unit_econ
-  const wmo = avgW(6)  // momentum
-  const wdf = avgW(7)  // defensibility
+  const wt  = avgW(0)
+  const wtr = avgW(1)
+  const wc  = avgW(2)
+  const wp  = avgW(3)
+  const wm  = avgW(4)
+  const wu  = avgW(5)
+  const wmo = avgW(6)
+  const wdf = avgW(7)
 
-  // Coverage-adjusted composite: only score dimensions we have evidence for.
-  // Dimensions with no data are excluded and their weights redistributed, so
-  // an early-stage company isn't penalised for the absence of a track record.
+  // Coverage-adjusted composite: only score dimensions with evidence.
+  // Fixed: defensibility gate now reads has_technical_moat + moat_type (what passes actually store).
+  // Late-stage fix: at series_b_plus+, absent traction scores at floor 15 rather than being
+  // excluded — absence of any traction signal at that stage is itself a yellow flag.
+  const LATE_STAGES = new Set(["series_b_plus", "growth", "pre_ipo", "ipo"])
+  const tractionCovered = !!(
+    parseFloat(fm["revenue_fy1_inr_cr"] || "0") > 0 ||
+    merged.revenue_inr_cr != null ||
+    fm["client_count"] || fm["gmv_inr_cr"] || fm["order_count_monthly"]
+  )
+  const lateStageNoTraction = !tractionCovered && LATE_STAGES.has(stage)
+
   const hasCoverage: Record<string, boolean> = {
-    team:          !!(fm["founder_1_education"] || fm["founder_1_domain_years"] || fm["founder_1_prior_exit"] || merged.glassdoor_rating),
-    traction:      !!(parseFloat(fm["revenue_fy1_inr_cr"] || "0") > 0 || merged.revenue_inr_cr != null || fm["client_count"] || fm["gmv_inr_cr"] || fm["order_count_monthly"]),
+    team:          !!(fm["founder_1_education"] || fm["founder_1_domain_years"] || fm["founder_1_prior_exit"] || fm["founder_1_prior_employer_type"] || merged.glassdoor_rating),
+    traction:      tractionCovered || lateStageNoTraction,
     capital:       !!(merged.total_raised_usd_m != null || fm["round_count"] || fm["investor_1_name"] || fm["investor_1_tier"]),
     product:       !!(fm["product_1_name"] || fm["has_api"] || fm["has_mobile_app"]),
     market:        true,
     unit_econ:     !!(merged.revenue_inr_cr != null || fm["runway_months"] || merged.is_profitable != null),
     momentum:      !!(fm["award_1"] || fm["partnership_1"] || fm["partnership_1_partner"] || fm["news_source_quality"] || fm["latest_news_headline"]),
-    defensibility: !!(fm["patent_1_status"] || fm["network_effects_strength"] || fm["switching_cost"] || fm["data_moat"]),
+    defensibility: !!(fm["has_technical_moat"] || fm["moat_type"] || fm["patent_count"] || fm["patent_1_status"] || fm["network_effects_strength"] || fm["regulatory_license"]),
   }
 
+  // For late-stage companies with no traction data, score at floor to signal the gap
+  const effectiveDimTraction = lateStageNoTraction ? 15 : dimTraction
+
   const allDims = [
-    { key: "team",          score: dimTeam,         w: wt  },
-    { key: "traction",      score: dimTraction,      w: wtr },
-    { key: "capital",       score: dimCapital,       w: wc  },
-    { key: "product",       score: dimProduct,       w: wp  },
-    { key: "market",        score: dimMarket,        w: wm  },
-    { key: "unit_econ",     score: dimUnitEcon,      w: wu  },
-    { key: "momentum",      score: dimMomentum,      w: wmo },
-    { key: "defensibility", score: dimDefensibility, w: wdf },
+    { key: "team",          score: dimTeam,              w: wt  },
+    { key: "traction",      score: effectiveDimTraction, w: wtr },
+    { key: "capital",       score: dimCapital,            w: wc  },
+    { key: "product",       score: dimProduct,            w: wp  },
+    { key: "market",        score: dimMarket,             w: wm  },
+    { key: "unit_econ",     score: dimUnitEcon,           w: wu  },
+    { key: "momentum",      score: dimMomentum,           w: wmo },
+    { key: "defensibility", score: dimDefensibility,      w: wdf },
   ]
 
-  const knownDims        = allDims.filter(d => hasCoverage[d.key])
-  const knownWtSum       = knownDims.reduce((s, d) => s + d.w, 0)
-  const composite        = knownWtSum > 0
+  const knownDims     = allDims.filter(d => hasCoverage[d.key])
+  const knownWtSum    = knownDims.reduce((s, d) => s + d.w, 0)
+  const rawComposite  = knownWtSum > 0
     ? Math.round(knownDims.reduce((s, d) => s + d.score * (d.w / knownWtSum), 0))
     : 0
+
+  // Coverage cap: sparse profiles cannot extrapolate to high scores.
+  // 8 dims → cap 102 (uncapped). 5 dims → cap 75. 2 dims → cap 48.
   const coveredDimensions = knownDims.length
+  const composite         = Math.min(rawComposite, 30 + coveredDimensions * 9)
 
   // Data quality
   const allRaw              = merged.raw_fields || []

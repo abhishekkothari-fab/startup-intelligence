@@ -950,12 +950,13 @@ export default function ProfilePage({
                 ))}
               </div>
 
-              {/* Row 2: Market, Unit Economics, Momentum */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.875rem", marginBottom: "1.25rem" }}>
+              {/* Row 2: Market, Unit Economics, Momentum, Defensibility */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.875rem", marginBottom: "1.25rem" }}>
                 {([
-                  ["Market Opportunity", sc.dim_market,    sc.w_market,    "var(--navy)"],
-                  ["Unit Economics",     sc.dim_unit_econ, sc.w_unit_econ, "var(--green)"],
-                  ["Momentum",          sc.dim_momentum,  sc.w_momentum,  "var(--navy)"],
+                  ["Market Opportunity", sc.dim_market,         sc.w_market,         "var(--navy)"],
+                  ["Unit Economics",     sc.dim_unit_econ,      sc.w_unit_econ,      "var(--green)"],
+                  ["Momentum",          sc.dim_momentum,       sc.w_momentum,       "var(--navy)"],
+                  ["Defensibility",     sc.dim_defensibility,  sc.w_defensibility,  "var(--green)"],
                 ] as [string, number|undefined, number|undefined, string][]).map(([name, val, w, c]) => (
                   <div key={name} style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, padding: "1rem 1.125rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>

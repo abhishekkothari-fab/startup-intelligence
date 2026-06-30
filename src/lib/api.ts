@@ -47,6 +47,7 @@ export interface StartupRow {
   dim_market?:         number
   dim_unit_econ?:      number
   dim_momentum?:       number
+  dim_defensibility?:  number
   scorecard_ids?:      string[]
   primary_scorecard?:  string
   data_quality_pct?:   number
@@ -61,15 +62,17 @@ export interface Score {
   dim_capital:        number
   dim_product:        number
   dim_market:         number
-  dim_unit_econ?:     number
-  dim_momentum:       number
-  w_team?:            number
-  w_traction?:        number
-  w_capital?:         number
-  w_product?:         number
-  w_market?:          number
-  w_unit_econ?:       number
-  w_momentum?:        number
+  dim_unit_econ?:      number
+  dim_momentum:        number
+  dim_defensibility?:  number
+  w_team?:             number
+  w_traction?:         number
+  w_capital?:          number
+  w_product?:          number
+  w_market?:           number
+  w_unit_econ?:        number
+  w_momentum?:         number
+  w_defensibility?:    number
   scorecard_ids?:     string[]
   primary_scorecard?: string
   data_quality_pct:   number

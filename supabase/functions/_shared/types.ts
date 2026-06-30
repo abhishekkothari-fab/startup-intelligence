@@ -101,6 +101,7 @@ export interface StartupProfile {
     dim_market: number
     dim_unit_econ: number
     dim_momentum: number
+    dim_defensibility: number
     w_team: number
     w_traction: number
     w_capital: number
@@ -108,6 +109,7 @@ export interface StartupProfile {
     w_market: number
     w_unit_econ: number
     w_momentum: number
+    w_defensibility: number
     composite_score: number
     fields_applicable: number
     fields_collected: number

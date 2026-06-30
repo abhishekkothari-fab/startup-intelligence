@@ -44,56 +44,58 @@ export function selectScorecards(merged: Partial<StartupProfile>): string[] {
 }
 
 // ── Stage-aware weights per scorecard ─────────────────────────────────────
-// Tuple: [team, traction, capital, product, market, unit_econ, momentum]
+// Tuple: [team, traction, capital, product, market, unit_econ, momentum, defensibility]
+// defensibility weight taken primarily from product (moat signals moved to dedicated dimension)
 
-type W7 = [number, number, number, number, number, number, number]
+type W8 = [number, number, number, number, number, number, number, number]
 
-const WEIGHTS: Record<string, Record<string, W7>> = {
+const WEIGHTS: Record<string, Record<string, W8>> = {
   saas: {
-    pre_seed:      [0.35, 0.05, 0.10, 0.25, 0.15, 0.05, 0.05],
-    seed:          [0.25, 0.15, 0.15, 0.20, 0.15, 0.05, 0.05],
-    series_a:      [0.15, 0.30, 0.10, 0.15, 0.15, 0.10, 0.05],
-    series_b_plus: [0.10, 0.30, 0.10, 0.15, 0.15, 0.15, 0.05],
-    growth:        [0.08, 0.32, 0.10, 0.12, 0.15, 0.18, 0.05],
+    pre_seed:      [0.35, 0.05, 0.10, 0.15, 0.15, 0.05, 0.05, 0.10],
+    seed:          [0.25, 0.15, 0.15, 0.12, 0.15, 0.05, 0.05, 0.08],
+    series_a:      [0.15, 0.30, 0.10, 0.08, 0.15, 0.10, 0.05, 0.07],
+    series_b_plus: [0.10, 0.30, 0.10, 0.08, 0.15, 0.15, 0.05, 0.07],
+    growth:        [0.08, 0.32, 0.10, 0.06, 0.15, 0.18, 0.05, 0.06],
   },
   d2c: {
-    pre_seed:      [0.30, 0.08, 0.10, 0.25, 0.15, 0.02, 0.10],
-    seed:          [0.25, 0.20, 0.15, 0.15, 0.15, 0.05, 0.05],
-    series_a:      [0.15, 0.30, 0.10, 0.15, 0.15, 0.10, 0.05],
-    series_b_plus: [0.10, 0.35, 0.10, 0.10, 0.15, 0.15, 0.05],
-    growth:        [0.08, 0.38, 0.10, 0.08, 0.12, 0.18, 0.06],
+    pre_seed:      [0.30, 0.08, 0.10, 0.17, 0.15, 0.02, 0.10, 0.08],
+    seed:          [0.25, 0.20, 0.15, 0.09, 0.15, 0.05, 0.05, 0.06],
+    series_a:      [0.15, 0.30, 0.10, 0.09, 0.15, 0.10, 0.05, 0.06],
+    series_b_plus: [0.10, 0.35, 0.10, 0.05, 0.15, 0.15, 0.04, 0.06],
+    growth:        [0.08, 0.38, 0.10, 0.05, 0.10, 0.18, 0.06, 0.05],
   },
   marketplace: {
-    pre_seed:      [0.35, 0.05, 0.10, 0.25, 0.15, 0.05, 0.05],
-    seed:          [0.25, 0.15, 0.15, 0.20, 0.15, 0.05, 0.05],
-    series_a:      [0.15, 0.30, 0.10, 0.15, 0.15, 0.10, 0.05],
-    series_b_plus: [0.10, 0.35, 0.10, 0.10, 0.15, 0.15, 0.05],
-    growth:        [0.08, 0.38, 0.10, 0.10, 0.12, 0.17, 0.05],
+    pre_seed:      [0.35, 0.05, 0.10, 0.15, 0.15, 0.05, 0.05, 0.10],
+    seed:          [0.25, 0.15, 0.15, 0.12, 0.15, 0.05, 0.05, 0.08],
+    series_a:      [0.15, 0.30, 0.10, 0.07, 0.15, 0.10, 0.05, 0.08],
+    series_b_plus: [0.10, 0.35, 0.10, 0.05, 0.13, 0.15, 0.05, 0.07],
+    growth:        [0.08, 0.38, 0.10, 0.05, 0.12, 0.15, 0.05, 0.07],
   },
   fintech: {
-    pre_seed:      [0.35, 0.05, 0.15, 0.20, 0.15, 0.05, 0.05],
-    seed:          [0.30, 0.15, 0.15, 0.15, 0.15, 0.05, 0.05],
-    series_a:      [0.20, 0.25, 0.15, 0.10, 0.15, 0.10, 0.05],
-    series_b_plus: [0.10, 0.30, 0.15, 0.10, 0.15, 0.15, 0.05],
-    growth:        [0.10, 0.30, 0.15, 0.10, 0.15, 0.15, 0.05],
+    pre_seed:      [0.35, 0.05, 0.15, 0.10, 0.15, 0.05, 0.05, 0.10],
+    seed:          [0.30, 0.15, 0.15, 0.07, 0.15, 0.05, 0.05, 0.08],
+    series_a:      [0.20, 0.25, 0.15, 0.05, 0.13, 0.10, 0.05, 0.07],
+    series_b_plus: [0.10, 0.30, 0.15, 0.05, 0.13, 0.15, 0.05, 0.07],
+    growth:        [0.10, 0.30, 0.15, 0.05, 0.13, 0.15, 0.05, 0.07],
   },
   deeptech: {
-    pre_seed:      [0.40, 0.02, 0.08, 0.30, 0.15, 0.02, 0.03],
-    seed:          [0.35, 0.10, 0.10, 0.25, 0.15, 0.02, 0.03],
-    series_a:      [0.25, 0.20, 0.15, 0.20, 0.12, 0.05, 0.03],
-    series_b_plus: [0.15, 0.30, 0.15, 0.15, 0.12, 0.10, 0.03],
-    growth:        [0.10, 0.35, 0.15, 0.15, 0.12, 0.10, 0.03],
+    // Higher defensibility weight — patents and regulatory licenses are core moats here
+    pre_seed:      [0.40, 0.02, 0.08, 0.18, 0.15, 0.02, 0.03, 0.12],
+    seed:          [0.35, 0.10, 0.10, 0.15, 0.15, 0.02, 0.03, 0.10],
+    series_a:      [0.25, 0.20, 0.15, 0.12, 0.12, 0.05, 0.03, 0.08],
+    series_b_plus: [0.15, 0.30, 0.15, 0.07, 0.12, 0.10, 0.03, 0.08],
+    growth:        [0.10, 0.35, 0.15, 0.07, 0.12, 0.10, 0.03, 0.08],
   },
   base: {
-    pre_seed:      [0.35, 0.05, 0.10, 0.20, 0.15, 0.05, 0.10],
-    seed:          [0.25, 0.20, 0.15, 0.15, 0.10, 0.05, 0.10],
-    series_a:      [0.15, 0.25, 0.15, 0.15, 0.10, 0.10, 0.10],
-    series_b_plus: [0.10, 0.30, 0.15, 0.15, 0.10, 0.15, 0.05],
-    growth:        [0.08, 0.35, 0.15, 0.12, 0.10, 0.15, 0.05],
+    pre_seed:      [0.35, 0.05, 0.10, 0.12, 0.15, 0.05, 0.10, 0.08],
+    seed:          [0.25, 0.20, 0.15, 0.08, 0.10, 0.05, 0.10, 0.07],
+    series_a:      [0.15, 0.25, 0.15, 0.08, 0.10, 0.10, 0.10, 0.07],
+    series_b_plus: [0.10, 0.30, 0.15, 0.08, 0.10, 0.15, 0.05, 0.07],
+    growth:        [0.08, 0.35, 0.15, 0.06, 0.10, 0.15, 0.05, 0.06],
   },
 }
 
-function getWeights(scorecard: string, stage: string): W7 {
+function getWeights(scorecard: string, stage: string): W8 {
   const sc = WEIGHTS[scorecard] ?? WEIGHTS.base
   return sc[stage] ?? sc.seed
 }
@@ -297,28 +299,63 @@ function scoreCapital(fm: Record<string, string>, merged: Partial<StartupProfile
   return s
 }
 
+function scoreDefensibility(fm: Record<string, string>, merged: Partial<StartupProfile>): number {
+  let s = 0
+
+  // Network effects: platform moat is strongest; data > indirect > direct
+  const netType = fm["network_effects_type"] || "none"
+  if      (netType === "platform")  s += 45
+  else if (netType === "indirect")  s += 35
+  else if (netType === "direct")    s += 30
+  else if (netType === "data")      s += 20
+
+  // Regulatory moat: licensed businesses have structural barriers to entry
+  const regLicense = (fm["regulatory_license"] || "").toLowerCase()
+  if (regLicense && regLicense !== "none" && regLicense !== "not applicable" && regLicense !== "n/a") {
+    const highBarrier = /nbfc|insurance|banking|rbi|sebi|spectrum|clinical/.test(regLicense)
+    s += highBarrier ? 35 : 25
+  }
+
+  // Patent moat: granted >> filed; US patents are global premium signal
+  const grantedPatents = parseInt(fm["patent_granted_count"] || "0")
+  const usPatents      = parseInt(fm["patent_us_count"]      || "0")
+  if      (grantedPatents >= 5 || usPatents >= 2) s += 30
+  else if (usPatents >= 1)                        s += 20
+  else if (grantedPatents >= 1)                   s += 10
+
+  // Switching cost: ERP integrations and compliance workflows create lock-in
+  const switchCost = fm["switching_cost_signal"] || ""
+  if      (switchCost === "high")     s += 20
+  else if (switchCost === "moderate") s += 10
+
+  // Ecosystem embedding: published API integrations = stickiness
+  const apiIntCount = parseInt(fm["api_integration_count"] || "0")
+  if      (apiIntCount >= 50) s += 10
+  else if (apiIntCount >= 10) s += 5
+
+  // Model proven elsewhere: geo analog de-risks the thesis
+  if (merged.geo_analog_company) s += 5
+
+  return Math.min(100, s)
+}
+
 function scoreProduct(fm: Record<string, string>, scorecard: string, stage: string): number {
-  const moat   = (fm["has_technical_moat"] || "").startsWith("yes")
+  // has_technical_moat and network_effects_type moved to scoreDefensibility (Tier 5)
   const api    = fm["has_api"]        === "yes"
   const mobile = fm["has_mobile_app"] === "yes"
   const prods  = parseInt(fm["product_count"] || "0")
 
-  // Patents: granted is primary signal; filed (patent_count) gets half credit if no granted data
+  // Patents: granted is primary; filed gets half credit (also scored in defensibility)
   const grantedPatents   = parseInt(fm["patent_granted_count"] || "0")
   const filedPatents     = parseInt(fm["patent_count"]         || "0")
   const effectivePatents = grantedPatents > 0 ? grantedPatents : Math.floor(filedPatents / 2)
   const usPatentBonus    = parseInt(fm["patent_us_count"] || "0") > 0 ? 5 : 0
 
-  // Network effects (Tier 2): direct and indirect moat signals
-  const netType  = fm["network_effects_type"] || "none"
-  const netBonus = netType === "platform" ? 25 : netType === "data" ? 20
-    : netType === "indirect" ? 18 : netType === "direct" ? 15 : 0
-
   // App store quality signal (Tier 2)
   const appRating = parseFloat(fm["app_store_rating"] || "0")
   const appBonus  = appRating >= 4.5 ? 10 : appRating >= 4.0 ? 5 : 0
 
-  // Third-party API integrations (Tier 2): ecosystem stickiness
+  // Third-party API integrations: ecosystem breadth as product quality signal
   const apiIntCount = parseInt(fm["api_integration_count"] || "0")
   const apiIntBonus = apiIntCount >= 50 ? 10 : apiIntCount >= 10 ? 5 : 0
 
@@ -327,33 +364,33 @@ function scoreProduct(fm: Record<string, string>, scorecard: string, stage: stri
 
   if (scorecard === "saas") {
     const patentBonus = effectivePatents > 0 ? 10 : 0
-    return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + patentBonus + usPatentBonus
-      + prodBonus + (mobile ? 5 : 0) + netBonus + appBonus + apiIntBonus)
+    return Math.min(100, 20 + (api ? 20 : 0) + patentBonus + usPatentBonus
+      + prodBonus + (mobile ? 5 : 0) + appBonus + apiIntBonus)
   }
   if (scorecard === "d2c") {
     const patentBonus = effectivePatents > 0 ? 10 : 0
-    return Math.min(100, 20 + (moat ? 30 : 0) + (mobile ? 15 : 0)
-      + prodBonus + patentBonus + usPatentBonus + (api ? 5 : 0) + netBonus + appBonus + apiIntBonus)
+    return Math.min(100, 20 + (mobile ? 15 : 0)
+      + prodBonus + patentBonus + usPatentBonus + (api ? 5 : 0) + appBonus + apiIntBonus)
   }
   if (scorecard === "fintech") {
     const patentBonus = effectivePatents > 0 ? 10 : 0
-    return Math.min(100, 20 + (moat ? 30 : 0) + (api ? 20 : 0) + (mobile ? 10 : 0)
-      + patentBonus + usPatentBonus + prodBonus + netBonus + appBonus + apiIntBonus)
+    return Math.min(100, 20 + (api ? 20 : 0) + (mobile ? 10 : 0)
+      + patentBonus + usPatentBonus + prodBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "marketplace") {
     const patentBonus = effectivePatents > 0 ? 10 : 0
-    return Math.min(100, 20 + (moat ? 25 : 0) + (mobile ? 20 : 0) + (api ? 15 : 0)
-      + prodBonus + patentBonus + usPatentBonus + netBonus + appBonus + apiIntBonus)
+    return Math.min(100, 20 + (mobile ? 20 : 0) + (api ? 15 : 0)
+      + prodBonus + patentBonus + usPatentBonus + appBonus + apiIntBonus)
   }
   if (scorecard === "deeptech") {
     const patentBonus = effectivePatents >= 5 ? 25 : effectivePatents >= 2 ? 20 : effectivePatents > 0 ? 15 : 0
-    return Math.min(100, 15 + (moat ? 35 : 0) + patentBonus + usPatentBonus + prodBonus
-      + (api ? 5 : 0) + (mobile ? 5 : 0) + netBonus + appBonus + apiIntBonus)
+    return Math.min(100, 15 + patentBonus + usPatentBonus + prodBonus
+      + (api ? 5 : 0) + (mobile ? 5 : 0) + appBonus + apiIntBonus)
   }
   // base
   const patentBonus = effectivePatents > 0 ? 10 : 0
-  return Math.min(100, 25 + (moat ? 30 : 0) + (api ? 15 : 0) + (mobile ? 10 : 0)
-    + patentBonus + usPatentBonus + prodBonus + netBonus + appBonus + apiIntBonus)
+  return Math.min(100, 25 + (api ? 15 : 0) + (mobile ? 10 : 0)
+    + patentBonus + usPatentBonus + prodBonus + appBonus + apiIntBonus)
 }
 
 function scoreMarket(merged: Partial<StartupProfile>): number {
@@ -506,28 +543,32 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const primaryScorecard = scorecardIds[0]
 
   // Compute dimensions per scorecard, then blend (average)
+  const defScore = scoreDefensibility(fm, merged)
+
   const sets = scorecardIds.map(sc => ({
-    w:        getWeights(sc, stage),
-    team:     scoreTeam(fm),
-    traction: scoreTraction(fm, merged, sc),
-    capital:  scoreCapital(fm, merged),
-    product:  scoreProduct(fm, sc, stage),
-    market:   scoreMarket(merged),
-    unitEcon: scoreUnitEcon(fm, merged, sc),
-    momentum: scoreMomentum(fm, merged),
+    w:            getWeights(sc, stage),
+    team:         scoreTeam(fm),
+    traction:     scoreTraction(fm, merged, sc),
+    capital:      scoreCapital(fm, merged),
+    product:      scoreProduct(fm, sc, stage),
+    market:       scoreMarket(merged),
+    unitEcon:     scoreUnitEcon(fm, merged, sc),
+    momentum:     scoreMomentum(fm, merged),
+    defensibility: defScore,
   }))
 
   const n    = sets.length
   const avg  = (fn: (d: typeof sets[0]) => number) => Math.round(sets.reduce((s, d) => s + fn(d), 0) / n)
   const avgW = (i: number) => Math.round(sets.reduce((s, d) => s + d.w[i], 0) / n * 100) / 100
 
-  const dimTeam     = avg(d => d.team)
-  const dimTraction = avg(d => d.traction)
-  const dimCapital  = avg(d => d.capital)
-  const dimProduct  = avg(d => d.product)
-  const dimMarket   = avg(d => d.market)
-  const dimUnitEcon = avg(d => d.unitEcon)
-  const dimMomentum = avg(d => d.momentum)
+  const dimTeam         = avg(d => d.team)
+  const dimTraction     = avg(d => d.traction)
+  const dimCapital      = avg(d => d.capital)
+  const dimProduct      = avg(d => d.product)
+  const dimMarket       = avg(d => d.market)
+  const dimUnitEcon     = avg(d => d.unitEcon)
+  const dimMomentum     = avg(d => d.momentum)
+  const dimDefensibility = avg(d => d.defensibility)
 
   const wt  = avgW(0)  // team
   const wtr = avgW(1)  // traction
@@ -536,10 +577,12 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
   const wm  = avgW(4)  // market
   const wu  = avgW(5)  // unit_econ
   const wmo = avgW(6)  // momentum
+  const wdf = avgW(7)  // defensibility
 
   const composite = Math.round(
     dimTeam * wt + dimTraction * wtr + dimCapital * wc +
-    dimProduct * wp + dimMarket * wm + dimUnitEcon * wu + dimMomentum * wmo
+    dimProduct * wp + dimMarket * wm + dimUnitEcon * wu + dimMomentum * wmo +
+    dimDefensibility * wdf
   )
 
   // Data quality
@@ -617,6 +660,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
       dim_market:        dimMarket,
       dim_unit_econ:     dimUnitEcon,
       dim_momentum:      dimMomentum,
+      dim_defensibility: dimDefensibility,
       w_team:            wt,
       w_traction:        wtr,
       w_capital:         wc,
@@ -624,6 +668,7 @@ export function computeScores(merged: Partial<StartupProfile>): Partial<StartupP
       w_market:          wm,
       w_unit_econ:       wu,
       w_momentum:        wmo,
+      w_defensibility:   wdf,
       composite_score:   composite,
       fields_applicable:     fieldsApplicable,
       fields_collected:      fieldsCollected,

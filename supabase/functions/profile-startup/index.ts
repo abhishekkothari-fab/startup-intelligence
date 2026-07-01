@@ -114,7 +114,8 @@ serve(async (req) => {
     // limit enforcement and tracking rather than fail the request.
     if (account) {
       if (account.role !== "admin") {
-        const limit = 25 + (account.bonus_pulls ?? 0);
+        const baseLimit = account.role === "basic" ? 3 : 25;
+        const limit = baseLimit + (account.bonus_pulls ?? 0);
         const { count } = await supabase
           .from("profile_pulls")
           .select("id", { count: "exact", head: true })

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase-auth"
 interface UsageRow {
   email:        string
   name:         string | null
-  role:         "admin" | "standard"
+  role:         "admin" | "standard" | "basic"
   bonus_pulls:  number
   pulls_used:   number
   pulls_limit:  number | null

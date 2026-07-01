@@ -138,7 +138,7 @@ export default function HomePage() {
   const [jobPasses,  setJobPasses]  = useState<{ completed: string[]; failed: string[]; pending: string[] } | null>(null)
   const [triggering, setTriggering] = useState(false)
   const [error,      setError]      = useState("")
-  const [usage,      setUsage]      = useState<{ role: "admin" | "standard"; used: number; limit: number } | null>(null)
+  const [usage,      setUsage]      = useState<{ role: "admin" | "standard" | "basic"; used: number; limit: number } | null>(null)
   const [colWidths,  setColWidths]  = useState(() => COL_DEFS.map(c => c.w))
   const resizingCol = useRef<{ col: number; startX: number; startW: number } | null>(null)
 
@@ -153,9 +153,10 @@ export default function HomePage() {
     const supabase = createClient()
     supabase.from("allowed_emails").select("role, bonus_pulls").eq("email", userEmail).maybeSingle()
       .then(({ data }) => {
-        const role = data?.role === "admin" ? "admin" : "standard"
+        const role = data?.role === "admin" ? "admin" : data?.role === "basic" ? "basic" : "standard"
         if (role === "admin") { setUsage({ role, used: 0, limit: 0 }); return }
-        const limit = 25 + (data?.bonus_pulls ?? 0)
+        const baseLimit = role === "basic" ? 3 : 25
+        const limit = baseLimit + (data?.bonus_pulls ?? 0)
         supabase.from("profile_pulls").select("id", { count: "exact", head: true }).eq("user_email", userEmail)
           .then(({ count }) => setUsage({ role, used: count ?? 0, limit }))
       })
@@ -274,7 +275,7 @@ export default function HomePage() {
               style={{ background: "transparent", border: "1px solid rgba(251,191,36,0.4)", color: "#fbbf24", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "var(--mono)", cursor: "pointer" }}
             >ADMIN</button>
           )}
-          {usage?.role === "standard" && (
+          {(usage?.role === "standard" || usage?.role === "basic") && (
             <span style={{
               color: usage.used >= usage.limit ? "#fca5a5" : "rgba(255,255,255,0.7)",
               fontSize: 12, fontFamily: "var(--mono)"

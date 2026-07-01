@@ -242,26 +242,37 @@ Only capture products 2–5 if they actually exist. If a field is unknown, set a
     system: `JSON only. Start with { end with }.
 
 Startup research analyst. Do up to 2 web searches targeting MCA registry sources.
-Search 1: target zaubacorp.com or tofler.in for CIN and incorporation details.
-Search 2 (if details incomplete): try mca.gov.in or tofler.in for registered address and capital.
+Search 1: target zaubacorp.com or tofler.in for CIN, incorporation details, and the company's latest filed financial statement (revenue/turnover, profit/loss, EBITDA).
+Search 2 (if details incomplete): try mca.gov.in or tofler.in for registered address, capital, and financial summary.
+
+CRITICAL: ZaubaCorp and Tofler pages for private limited companies often show a "Financials" or "Profit & Loss" section sourced from the company's MCA (Registrar of Companies) annual filing — extract revenue, net profit, and EBITDA from there whenever present, even if the fiscal year is 1-2 years old (MCA filings always lag). For many startups with no press coverage, this is the ONLY hard revenue evidence available.
 
 Return this exact JSON structure — raw_fields MUST be populated with every field you find:
 {
   "cin": "U74900MH2011PTC291275",
   "legal_name": "Baldor Technologies Private Limited",
+  "revenue_inr_cr": null,
+  "revenue_fy": null,
+  "net_profit_inr_cr": null,
+  "is_profitable": null,
   "raw_fields": [
     {"field_name":"incorporation_date","field_pack":"regulatory","applicability":"applicable","raw_value":"2011-05-31","data_type":"date","source_type":"web","source_url":"https://www.zaubacorp.com/...","confidence":0.95},
-    {"field_name":"entity_1_name","field_pack":"regulatory","applicability":"applicable","raw_value":"IDfy","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.95}
+    {"field_name":"entity_1_name","field_pack":"regulatory","applicability":"applicable","raw_value":"IDfy","data_type":"text","source_type":"web","source_url":"https://idfy.com","confidence":0.95},
+    {"field_name":"mca_ebitda_inr_cr","field_pack":"regulatory","applicability":"applicable","raw_value":"12.4","data_type":"number","source_type":"web","source_url":"https://www.tofler.in/...","confidence":0.85}
   ]
 }
 
 CIN format: [U/L][5-digit NIC][2-letter state][4-digit year][PTC/OPC/LLC][6-digit number] — exactly 21 characters.
 Entity fields to capture (field_pack="regulatory"): entity_1_name through entity_6_name — the operating and legal corporate structure only. For each: entity_N_type and entity_N_description (one sentence on what this entity does or its role in the group). Only capture entities you actually found evidence for. STRICT: never output placeholder names.
-entity_N_type: brand|subsidiary|holding_co|associate|product_brand. NEVER capture investors/VCs as entities — only the startup's own legal structure and brands.`,
+entity_N_type: brand|subsidiary|holding_co|associate|product_brand. NEVER capture investors/VCs as entities — only the startup's own legal structure and brands.
+
+FINANCIALS (top-level fields, read off the MCA-sourced filing shown on ZaubaCorp/Tofler — set null if the page has no financial section):
+revenue_inr_cr: latest filed annual revenue/turnover in INR crore (number). revenue_fy: fiscal year label of that filing, e.g. "FY23". net_profit_inr_cr: latest filed net profit/loss in INR crore (negative if a loss). is_profitable: true/false based on the sign of net_profit_inr_cr. Also add mca_ebitda_inr_cr as a raw_field (field_pack="regulatory") if EBITDA is shown separately from net profit.
+Do NOT fabricate financials — only report numbers actually visible on the page.`,
     user: (co, country, ctx) => {
       const cname = country === "IN" ? "India" : country
       const entity = ctx?.legalName || co
-      return `Search 1: "${entity} CIN incorporation site:zaubacorp.com OR site:tofler.in OR site:tracxn.com" — find MCA registration, CIN, incorporation date, registered address, authorized capital, paid-up capital for the legal entity.\nSearch 2 (if address/capital not found): "${entity} registered address capital site:tofler.in OR site:mca.gov.in OR site:tracxn.com" — return full regulatory JSON for ${co} (legal entity: ${entity}).`
+      return `Search 1: "${entity} CIN incorporation financials revenue turnover profit site:zaubacorp.com OR site:tofler.in OR site:tracxn.com" — find MCA registration, CIN, incorporation date, registered address, authorized capital, paid-up capital, and the latest filed revenue/profit for the legal entity.\nSearch 2 (if address/capital/financials not found): "${entity} registered address capital financials revenue site:tofler.in OR site:mca.gov.in OR site:tracxn.com" — return full regulatory JSON for ${co} (legal entity: ${entity}).`
     },
     maxTokens: 4000,
     maxSearches: 2,
@@ -272,9 +283,10 @@ entity_N_type: brand|subsidiary|holding_co|associate|product_brand. NEVER captur
   signals: {
     system: `JSON only. Start with { end with }.
 
-Startup research analyst. Do up to 2 web searches to find comprehensive financial signals for the specified Indian startup.
+Startup research analyst. Do up to 3 web searches to find comprehensive financial signals for the specified Indian startup.
 Search 1: target entrackr.com or inc42.com for multi-year revenue, financials, and named clients.
 Search 2 (if revenue or financials not found in Search 1): broaden to site:economictimes.indiatimes.com OR site:business-standard.com OR site:moneycontrol.com OR site:thehindu.com for the same company.
+Search 3 (ONLY if revenue/ARR is still not found after Search 1 and 2): try two more source types — (a) credit rating rationale reports, which disclose audited revenue/EBITDA/net worth even for companies with zero press coverage: site:crisil.com OR site:icra.in OR site:careratings.com OR site:indiaratings.co.in; (b) venture debt announcements, which often state ARR alongside the debt raise: search "<company> venture debt ARR" (lenders include Trifecta Capital, Alteria Capital, Stride Ventures, InnoVen Capital). Skip this search entirely if Search 1/2 already found revenue — it exists only to fill a genuine gap.
 
 CRITICAL: raw_fields MUST be populated. An empty raw_fields array is WRONG. Populate every field you find evidence for.
 
@@ -295,13 +307,15 @@ Return this exact JSON structure:
 
 Required raw_fields — populate ALL you find evidence for (field_pack="signals" for all):
 FINANCIALS: revenue_fy1_year through revenue_fy6_year (label e.g. "FY25"), revenue_fy1_inr_cr through revenue_fy6_inr_cr (number as string), revenue_cagr_5yr_pct, fy_next_target_inr_cr (next year revenue target if mentioned)
+SCALE METRICS (D2C/marketplace/fintech only — set null if not that business model): gmv_inr_cr (annual gross merchandise value in INR crore, for D2C/marketplace), aum_inr_cr (assets under management in INR crore, for lending/wealth-tech/fintech), order_count_monthly (average monthly order volume, for D2C/marketplace)
+If revenue evidence came from a credit rating rationale report or a venture debt ARR disclosure (Search 3), still populate revenue_fy1_year/revenue_fy1_inr_cr etc. normally — treat ARR from a debt announcement as equivalent to revenue_inr_cr for that fiscal year.
 CLIENTS: client_1_name through client_5_name, client_1_sector through client_5_sector (sector e.g. "BFSI", "Insurance", "E-commerce", "Gaming")
 AWARDS: award_1 through award_5 (name + year in one string). Include ALL recognitions: industry awards, workplace certifications (Great Place to Work, Best Places to Work, etc.), rankings (Forbes, ET, YS), and competitive wins — not just product/company awards
 SIGNALS: latest_news_headline, latest_news_date (YYYY-MM), expansion_target_market, volume_metric (operational scale e.g. "500M verifications/yr"), market_share (e.g. "60% Video KYC India"), ipo_signal (IPO/pre-IPO language if any)
 PARTNERSHIPS (structured — capture top 4 most significant): partnership_1_partner through partnership_4_partner (company/org name), partnership_1_category through partnership_4_category (e.g. "Tier-1 bank", "Global payments", "Consumer e-commerce"), partnership_1_usecase through partnership_4_usecase (what the company does for them), partnership_1_signal through partnership_4_signal (strength of evidence — quote, event, case study). Keep partnership_1 (flat string) as a fallback if structured not possible. STRICTLY exclude investors, VCs, PE funds, and government funding bodies (e.g. SIDBI) — they belong in the funding pass. Only include commercial relationships: retailers, distributors, technology integrations, B2B clients, channel partners.
 QUOTES: key_quote_1_text (most insightful founder/investor quote found), key_quote_1_author, key_quote_2_text, key_quote_2_author
 ENRICHMENT (always include, even if value is "0" or "none"):
-- news_source_quality: tier1|tier2|blog — quality of the most prominent press coverage found. tier1=Economic Times/Mint/Business Standard/TechCrunch/Bloomberg/Forbes/Reuters. tier2=YourStory/Inc42/Entrackr/VC Circle/The Ken. blog=company blog/press release/unknown outlet.
+- news_source_quality: tier1|tier2|blog — quality of the most prominent press coverage found. tier1=Economic Times/Mint/Business Standard/TechCrunch/Bloomberg/Forbes/Reuters, or an audited figure from a CRISIL/ICRA/CARE/India Ratings rationale report (these outrank press). tier2=YourStory/Inc42/Entrackr/VC Circle/The Ken, or a venture debt lender's ARR disclosure. blog=company blog/press release/unknown outlet.
 - named_enterprise_client_count: count of enterprise clients publicly named on the company website, case studies, or press releases (string number; "0" if none found)
 - partner_1_tier: enterprise|mid|small — quality of the most prominent commercial partnership. enterprise=Fortune 500/NSE 500 scale. mid=significant regional/sector player. small=SME or startup partner. Set to "none" if no partnerships found.
 - employee_count_1yr_ago: approximate team size 12 months ago (string number if findable from LinkedIn/Tracxn/news mentions of past headcount; null if not findable)
@@ -311,11 +325,11 @@ Only include years/clients/awards you actually found. Do not fabricate data.`,
       const cname = country === "IN" ? "India" : country
       const sector = ctx?.industry ? ` ${ctx.industry}` : ""
       const siteHint = ctx?.website ? ` OR site:${new URL(ctx.website).hostname}` : ""
-      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2: "${co}" award OR recognition OR winner OR ranked OR "great place to work" 2022 2023 2024 2025 site:inc42.com OR site:yourstory.com OR site:linkedin.com${siteHint}\nReturn complete signals JSON for the Indian company ${co}.`
+      return `Search 1: "${co} ${cname}${sector} revenue FY25 FY24 FY23 financials growth clients site:entrackr.com OR site:inc42.com OR site:yourstory.com"\nSearch 2: "${co}" award OR recognition OR winner OR ranked OR "great place to work" 2022 2023 2024 2025 site:inc42.com OR site:yourstory.com OR site:linkedin.com${siteHint}\nSearch 3 (only if revenue is still unknown after Search 1/2): "${co} ${cname} revenue rating rationale" site:crisil.com OR site:icra.in OR site:careratings.com OR site:indiaratings.co.in — OR "${co} venture debt ARR raised" for a lender ARR disclosure.\nReturn complete signals JSON for the Indian company ${co}.`
     },
-    maxSearches: 2,
+    maxSearches: 3,
     maxTokens: 6000,
-    timeoutMs: 120_000,
+    timeoutMs: 135_000,
   },
 
   youtube: {
